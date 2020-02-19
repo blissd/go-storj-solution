@@ -19,11 +19,26 @@ func TestEncodeStartSend(t *testing.T) {
 	if bytes[0] != msgSendStart {
 		t.Fatalf("Expected message type of %v, got %v", bytes[0], msgSendStart)
 	}
-	if uint8(bytes[1]) != uint8(len(fileName)) {
-		t.Fatalf("Expected encoded file name length to be %v, got %v", len(fileName), uint8(bytes[1]))
+	if bytes[1] != uint8(len(fileName)) {
+		t.Fatalf("Expected encoded file name length to be %v, got %v", len(fileName), bytes[1])
 	}
 
 	s := string(bytes[2:])
+	if s != fileName {
+		t.Fatalf("Expected file name to be %v, got %v", fileName, s)
+	}
+}
+
+func TestDecodeStartSend(t *testing.T) {
+	fileName := "some_name.txt"
+
+	bytes, _ := EncodeStartSend(fileName)
+	s, err := DecodeStartSend(bytes)
+
+	if err != nil {
+		t.Fatalf("failed decode: %v", err)
+	}
+
 	if s != fileName {
 		t.Fatalf("Expected file name to be %v, got %v", fileName, s)
 	}
@@ -45,7 +60,22 @@ func TestEncodeSecret(t *testing.T) {
 
 	s := string(bytes[1:])
 	if s != secret {
-		t.Fatalf("Expected secret to be %v, got %v", secret, s)
+		t.Fatalf("Expected %v, got %v", secret, s)
+	}
+}
+
+func TestDecodeSecret(t *testing.T) {
+	secret := "abc123"
+
+	bytes, _ := EncodeSecret(secret)
+	s, err := DecodeSecret(bytes)
+
+	if err != nil {
+		t.Fatalf("failed decode: %v", err)
+	}
+
+	if s != secret {
+		t.Fatalf("Expected %v, got %v", secret, s)
 	}
 }
 
@@ -64,6 +94,20 @@ func TestEncodeContentLength(t *testing.T) {
 	}
 
 	s := binary.BigEndian.Uint32(bytes[1:])
+	if s != length {
+		t.Fatalf("Expected length to be %v, got %v", length, s)
+	}
+}
+
+func TestDecodeContentLength(t *testing.T) {
+	length := uint32(231231)
+
+	bytes, _ := EncodeContentLength(length)
+	s, err := DecodeContentLength(bytes)
+	if err != nil {
+		t.Fatalf("failed decode: %v", err)
+	}
+
 	if s != length {
 		t.Fatalf("Expected length to be %v, got %v", length, s)
 	}
