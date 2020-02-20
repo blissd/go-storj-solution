@@ -9,15 +9,15 @@ import (
 func TestEncodeStartSend(t *testing.T) {
 	fileName := "some_name.txt"
 
-	bytes, err := EncodeStartSend(fileName)
+	bytes, err := EncodeFileName(fileName)
 	if err != nil {
 		t.Fatalf("failed encode: %v", err)
 	}
 	if len(bytes) != 2+len(fileName) {
 		t.Fatalf("frame length incorrect. Expected %v, got %v", len(fileName), len(bytes))
 	}
-	if bytes[0] != msgSendStart {
-		t.Fatalf("Expected message type of %v, got %v", bytes[0], msgSendStart)
+	if bytes[0] != msgFileName {
+		t.Fatalf("Expected message type of %v, got %v", bytes[0], msgFileName)
 	}
 	if bytes[1] != uint8(len(fileName)) {
 		t.Fatalf("Expected encoded file name length to be %v, got %v", len(fileName), bytes[1])
@@ -32,8 +32,8 @@ func TestEncodeStartSend(t *testing.T) {
 func TestDecodeStartSend(t *testing.T) {
 	fileName := "some_name.txt"
 
-	bytes, _ := EncodeStartSend(fileName)
-	s, err := DecodeStartSend(bytes)
+	bytes, _ := EncodeFileName(fileName)
+	s, err := DecodeFileName(bytes)
 
 	if err != nil {
 		t.Fatalf("failed decode: %v", err)
@@ -82,15 +82,15 @@ func TestDecodeSecret(t *testing.T) {
 func TestEncodeContentLength(t *testing.T) {
 	length := uint32(231231)
 
-	bytes, err := EncodeContentLength(length)
+	bytes, err := EncodeFileLength(length)
 	if err != nil {
 		t.Fatalf("failed encode: %v", err)
 	}
 	if len(bytes) != 1+int(unsafe.Sizeof(length)) {
 		t.Fatalf("frame length incorrect. Expected %v, got %v", 1+unsafe.Sizeof(length), len(bytes))
 	}
-	if bytes[0] != msgContents {
-		t.Fatalf("Expected message type of %v, got %v", bytes[0], msgContents)
+	if bytes[0] != msgFileLength {
+		t.Fatalf("Expected message type of %v, got %v", bytes[0], msgFileLength)
 	}
 
 	s := binary.BigEndian.Uint32(bytes[1:])
@@ -102,8 +102,8 @@ func TestEncodeContentLength(t *testing.T) {
 func TestDecodeContentLength(t *testing.T) {
 	length := uint32(231231)
 
-	bytes, _ := EncodeContentLength(length)
-	s, err := DecodeContentLength(bytes)
+	bytes, _ := EncodeFileLength(length)
+	s, err := DecodeFileLength(bytes)
 	if err != nil {
 		t.Fatalf("failed decode: %v", err)
 	}

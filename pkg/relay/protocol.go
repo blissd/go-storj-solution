@@ -8,19 +8,21 @@ import (
 )
 
 const (
-	// Client initiating file send.
-	msgSendStart byte = 1
 
-	// Server informing sending client of secret code
-	// or receiving client initiating file receipt with secret code.
+	// Encoded sender type
+	msgSend byte = 1
+
+	// Encoded receiver type
+	msgRecv byte = 2
+
+	// Encoded secret code
 	msgSecretCode byte = 3
 
-	// Informs sending client they can start sending file data.
-	// File data cannot be sent until a receiving client is ready.
-	//msgReady byte = 4
+	// Encoded file name.
+	msgFileName byte = 4
 
-	// Informs server or receiving client of the file length and data
-	msgContents byte = 5
+	// Encoded file length
+	msgFileLength byte = 5
 )
 
 // Format a messages for initiating the sender side of a transfer session.
@@ -29,25 +31,25 @@ const (
 // byte 0 -> header
 // byte 1 -> file name length
 // byte 2+ -> file name
-func EncodeStartSend(fileName string) ([]byte, error) {
+func EncodeFileName(fileName string) ([]byte, error) {
 	length := uint8(len(fileName))
 	if length > 255 {
 		return nil, errors.New("file name too long")
 	}
 
 	var buf bytes.Buffer
-	buf.WriteByte(msgSendStart)
+	buf.WriteByte(msgFileName)
 	buf.WriteByte(length)
 	buf.WriteString(fileName)
 	return buf.Bytes(), nil
 }
 
-func DecodeStartSend(bs []byte) (string, error) {
+func DecodeFileName(bs []byte) (string, error) {
 	if len(bs) <= 2 {
 		return "", errors.New("too short")
 	}
-	if bs[0] != msgSendStart {
-		return "", fmt.Errorf("expected type %v, got %v", msgSendStart, bs[0])
+	if bs[0] != msgFileName {
+		return "", fmt.Errorf("expected type %v, got %v", msgFileName, bs[0])
 	}
 	length := int(bs[1])
 	if len(bs) != 2+length {
@@ -84,30 +86,30 @@ func DecodeSecret(bs []byte) (string, error) {
 
 // Encodes content length of a file, put to uint32 max value
 // Format is:
-// byte 0 -> msgContents
+// byte 0 -> msgFileLength
 // byte 1-4 -> big endian encoded length
 // No further bytes are encoded, but caller is expected to
 // follow this message with exactly `length` bytes.
-func EncodeContentLength(length uint32) ([]byte, error) {
+func EncodeFileLength(length uint32) ([]byte, error) {
 	if length <= 0 {
-		return nil, errors.New("msgContents must be >= 0")
+		return nil, errors.New("msgFileLength must be >= 0")
 	}
 
 	var buf bytes.Buffer
-	buf.WriteByte(msgContents)
+	buf.WriteByte(msgFileLength)
 	if err := binary.Write(&buf, binary.BigEndian, length); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
 }
 
-func DecodeContentLength(bs []byte) (uint32, error) {
+func DecodeFileLength(bs []byte) (uint32, error) {
 	if len(bs) < 5 || len(bs) > 5 {
 		return 0, errors.New("must be 5 bytes")
 	}
 
-	if bs[0] != msgContents {
-		return 0, fmt.Errorf("expected type %v, got %v", msgContents, bs[0])
+	if bs[0] != msgFileLength {
+		return 0, fmt.Errorf("expected type %v, got %v", msgFileLength, bs[0])
 	}
 
 	length := binary.BigEndian.Uint32(bs[1:])
