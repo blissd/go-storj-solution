@@ -17,19 +17,19 @@ const (
 const (
 
 	// Encoded sender type
-	MsgSend byte = 1
+	MsgSend byte = iota + 1
 
 	// Encoded receiver type
-	MsgRecv byte = 2
+	MsgRecv
 
 	// Encoded secret code
-	msgSecretCode byte = 3
+	msgSecretCode
 
 	// Encoded file name.
-	msgFileName byte = 4
+	msgFileName
 
 	// Encoded file length
-	msgFileLength byte = 5
+	msgFileLength
 )
 
 type Session struct {
@@ -172,8 +172,8 @@ func (s *Session) nextFrame() ([]byte, error) {
 	return frame, err
 }
 
-func (s *Session) sendString(fieldType byte, v string) error {
-	bs, err := encodeString(fieldType, v)
+func (s *Session) sendString(id byte, v string) error {
+	bs, err := encodeString(id, v)
 	if err != nil {
 		return fmt.Errorf("send string: %w", err)
 	}
@@ -186,7 +186,7 @@ func (s *Session) sendString(fieldType byte, v string) error {
 	return nil
 }
 
-func (s *Session) recvString(fieldType byte) (string, error) {
+func (s *Session) recvString(id byte) (string, error) {
 	f, err := s.nextFrame()
 	if err != nil {
 		return "", fmt.Errorf("recv string: %w", err)
@@ -196,8 +196,8 @@ func (s *Session) recvString(fieldType byte) (string, error) {
 
 	if err != nil {
 		return "", fmt.Errorf("recv string: %w", err)
-	} else if ft != fieldType {
-		return "", fmt.Errorf("expected %v, got %v", fieldType, ft)
+	} else if ft != id {
+		return "", fmt.Errorf("expected %v, got %v", id, ft)
 	}
 
 	return v, nil

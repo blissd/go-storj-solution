@@ -67,9 +67,9 @@ func decodeInt64(bs []byte) (byte, int64, error) {
 		return 0, 0, fmt.Errorf("frame too short: %v", bs[0])
 	}
 
-	buf := bytes.NewBuffer(bs)
+	buf := bytes.NewBuffer(bs[2:])
 	if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
-		return 0, 0, fmt.Errorf("decodeint64: %w", err)
+		return 0, 0, fmt.Errorf("decodeInt64: %w", err)
 	}
 	return bs[1], length, nil
 }

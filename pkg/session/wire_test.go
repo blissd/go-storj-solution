@@ -64,8 +64,8 @@ func TestEncodeInt64(t *testing.T) {
 		t.Fatalf("frame length incorrect. Expected %v, got %v", 1+unsafe.Sizeof(length), len(bs))
 	}
 
-	if bs[0] != 5 {
-		t.Fatalf("Expected frame length of 5, got %v", bs[0])
+	if bs[0] != 1+byte(unsafe.Sizeof(length)) {
+		t.Fatalf("Expected frame length of %v, got %v", 1+byte(unsafe.Sizeof(length)), bs[0])
 	}
 
 	if bs[1] != msgFileLength {
