@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"unsafe"
 )
 
 // Format a string, such as a file name or a secret code.
@@ -16,7 +17,7 @@ import (
 func encodeString(fieldType byte, s string) ([]byte, error) {
 	length := uint8(len(s) + 1)
 	if length > 255 {
-		return nil, errors.New("string too long")
+		return nil, errors.New("too long")
 	}
 
 	var buf bytes.Buffer
@@ -28,7 +29,7 @@ func encodeString(fieldType byte, s string) ([]byte, error) {
 
 func decodeString(bs []byte) (byte, string, error) {
 	if len(bs) <= 2 {
-		return 0, "", errors.New("too short")
+		return 0, "", errors.New("bad frame")
 	}
 
 	length := int(bs[0])
@@ -39,33 +40,37 @@ func decodeString(bs []byte) (byte, string, error) {
 	return bs[1], string(bs[2:]), nil
 }
 
-// Encodes a uint32.
+// Encodes an int64.
 // Format is:
 // byte 0 -> frame size
 // byte 1 -> field type. Always 5.
 // byte 2-5 -> big endian encoded length
 // No further bytes are encoded, but caller is expected to
 // follow this message with exactly `length` bytes.
-func encodeUint32(fieldType byte, length uint32) ([]byte, error) {
+func encodeInt64(fieldType byte, length int64) ([]byte, error) {
 	var buf bytes.Buffer
-	buf.WriteByte(5) // type + sizeof(uint32)
+	buf.WriteByte(1 + byte(unsafe.Sizeof(length)))
 	buf.WriteByte(fieldType)
 	if err := binary.Write(&buf, binary.BigEndian, length); err != nil {
-		return nil, fmt.Errorf("encodeUint32: %w", err)
+		return nil, fmt.Errorf("encodeInt64: %w", err)
 	}
 	return buf.Bytes(), nil
 }
 
-func decodeUint32(bs []byte) (byte, uint32, error) {
+func decodeInt64(bs []byte) (byte, int64, error) {
 	if len(bs) < 2 {
-		return 0, 0, errors.New("too short")
+		return 0, 0, errors.New("bad frame")
 	}
 
-	if bs[0] != 5 {
-		return 0, 0, fmt.Errorf("expected length of 5 but got %v", bs[0])
+	var length int64
+	if bs[0] != 1+byte(unsafe.Sizeof(length)) {
+		return 0, 0, fmt.Errorf("frame too short: %v", bs[0])
 	}
 
-	length := binary.BigEndian.Uint32(bs[2:])
+	buf := bytes.NewBuffer(bs)
+	if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
+		return 0, 0, fmt.Errorf("decodeint64: %w", err)
+	}
 	return bs[1], length, nil
 }
 

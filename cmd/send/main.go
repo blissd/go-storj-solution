@@ -52,11 +52,11 @@ func main() {
 		log.Fatalln("failed getting file info:", err)
 	}
 
-	if err = s.SendFileLength(uint32(info.Size())); err != nil {
+	if err = s.SendFileLength(info.Size()); err != nil {
 		log.Fatalln("failed sending file length:", err)
 	}
 
-	if err = s.Send(file); err != nil {
+	if _, err = s.Send(file); err != nil {
 		log.Fatalln("failed sending file contents:", err)
 	}
 }

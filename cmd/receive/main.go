@@ -17,6 +17,10 @@ func main() {
 	secret := os.Args[2]
 	dir := os.Args[3]
 
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		log.Fatalln("output must be an existing directory")
+	}
+
 	s, err := session.New(addr)
 	if err != nil {
 		log.Fatalln("failed creating session:", err)
@@ -48,7 +52,7 @@ func main() {
 	}
 	defer file.Close()
 
-	if err = s.Recv(file, int32(length)); err != nil {
+	if n, err := s.Recv(file); err != nil || n != length {
 		log.Fatalln("failed receiving file:", err)
 	}
 }

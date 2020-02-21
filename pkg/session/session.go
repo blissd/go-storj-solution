@@ -83,8 +83,8 @@ func (s *Session) RecvSecret() (string, error) {
 	return v, err
 }
 
-func (s *Session) SendFileLength(length uint32) error {
-	bs, err := encodeUint32(msgFileLength, length)
+func (s *Session) SendFileLength(length int64) error {
+	bs, err := encodeInt64(msgFileLength, length)
 	if err != nil {
 		return fmt.Errorf("send file length: %w", err)
 	}
@@ -96,13 +96,13 @@ func (s *Session) SendFileLength(length uint32) error {
 	return nil
 }
 
-func (s *Session) RecvFileLength() (uint32, error) {
+func (s *Session) RecvFileLength() (int64, error) {
 	f, err := s.nextFrame()
 	if err != nil {
 		return 0, fmt.Errorf("recv file length: %w", err)
 	}
 
-	ft, v, err := decodeUint32(f)
+	ft, v, err := decodeInt64(f)
 	if err != nil {
 		return 0, fmt.Errorf("recv file length: %w", err)
 	} else if ft != msgFileLength {
@@ -150,14 +150,12 @@ func (s *Session) WaitForRecv() error {
 	return nil
 }
 
-func (s *Session) Send(r io.Reader) error {
-	_, err := io.Copy(s.conn, r)
-	return err
+func (s *Session) Send(r io.Reader) (int64, error) {
+	return io.Copy(s.conn, r)
 }
 
-func (s *Session) Recv(w io.Writer, length int32) error {
-	_, err := io.CopyN(w, s.conn, int64(length))
-	return err
+func (s *Session) Recv(w io.Writer) (int64, error) {
+	return io.Copy(w, s.conn)
 }
 
 // reads the next from from the connection
