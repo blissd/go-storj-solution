@@ -48,36 +48,25 @@ func New(addr string) (*Session, error) {
 }
 
 func (s *Session) SendFileName(name string) error {
-	bs, err := EncodeString(msgFileName, name)
-	if err != nil {
-		return err
-	}
-
-	_, err = s.conn.Write(bs)
-	return err
+	return s.sendString(msgFileName, name)
 }
 
 func (s *Session) RecvFileName() (string, error) {
-	hdr := make([]byte, 2)
-	_, err := s.conn.Read(hdr)
-	if err != nil {
-		return "", err
-	}
-	if hdr[0] != msgFileName {
-		return "", fmt.Errorf("expected %v, got %v", msgFileName, hdr[0])
-	}
-	length := hdr[1]
-	name := make([]byte, length)
-	_, err = s.conn.Read(name)
-	if err != nil {
-		return "", err
-	}
-
-	return string(name), nil
+	v, err := s.recvString(msgFileName)
+	return v, err
 }
 
 func (s *Session) SendSecret(secret string) error {
-	bs, err := EncodeString(msgSecretCode, secret)
+	return s.sendString(msgSecretCode, secret)
+}
+
+func (s *Session) RecvSecret() (string, error) {
+	v, err := s.recvString(msgSecretCode)
+	return v, err
+}
+
+func (s *Session) SendFileLength(length uint32) error {
+	bs, err := encodeUint32(msgFileLength, length)
 	if err != nil {
 		return err
 	}
@@ -86,12 +75,80 @@ func (s *Session) SendSecret(secret string) error {
 	return err
 }
 
-func (s *Session) SendFileLength(length uint32) error {
-	bs, err := EncodeUint32(msgFileLength, length)
+func (s *Session) RecvFileLength() (uint32, error) {
+	f, err := s.nextFrame()
+	if err != nil {
+		return 0, err
+	}
+
+	ft, v, err := decodeUint32(f)
+	if err != nil {
+		return 0, err
+	} else if ft != msgFileLength {
+		return 0, fmt.Errorf("expected %v, got %v", msgFileLength, ft)
+	}
+	return v, err
+}
+
+// Informs server that client is a receiver.
+// Informs sender that receiver is connected and ready.
+func (s *Session) SendSendReady() error {
+	bs, err := encodeByte(msgSend)
+	if err != nil {
+		return err
+	}
+	_, err = s.conn.Write(bs)
+	return err
+}
+
+// Informs server that client is a receiver.
+// Informs sender that receiver is connected and ready.
+func (s *Session) SendRecvReady() error {
+	bs, err := encodeByte(msgRecv)
+	if err != nil {
+		return err
+	}
+	_, err = s.conn.Write(bs)
+	return err
+}
+
+// reads the next from from the connection
+func (s *Session) nextFrame() ([]byte, error) {
+	length := make([]byte, 1)
+	_, err := s.conn.Read(length)
+	if err != nil {
+		return nil, err
+	}
+
+	frame := make([]byte, length[0]+1)
+	frame[0] = length[0]
+	_, err = s.conn.Read(frame[1:])
+	return frame, err
+}
+
+func (s *Session) sendString(fieldType byte, v string) error {
+	bs, err := encodeString(fieldType, v)
 	if err != nil {
 		return err
 	}
 
 	_, err = s.conn.Write(bs)
 	return err
+}
+
+func (s *Session) recvString(fieldType byte) (string, error) {
+	f, err := s.nextFrame()
+	if err != nil {
+		return "", err
+	}
+
+	ft, v, err := decodeString(f)
+
+	if err != nil {
+		return "", err
+	} else if ft != fieldType {
+		return "", fmt.Errorf("expected %v, got %v", fieldType, ft)
+	}
+
+	return v, nil
 }

@@ -10,7 +10,7 @@ func TestEncodeString(t *testing.T) {
 	original := "some text"
 	fieldType := msgFileName
 
-	bytes, err := EncodeString(fieldType, original)
+	bytes, err := encodeString(fieldType, original)
 	if err != nil {
 		t.Fatalf("failed encode: %v", err)
 	}
@@ -36,8 +36,8 @@ func TestEncodeString(t *testing.T) {
 func TestDecodeString(t *testing.T) {
 	original := "some_name.txt"
 
-	bytes, _ := EncodeString(msgSecretCode, original)
-	fieldType, s, err := DecodeString(bytes)
+	bytes, _ := encodeString(msgSecretCode, original)
+	fieldType, s, err := decodeString(bytes)
 
 	if err != nil {
 		t.Fatalf("failed decode: %v", err)
@@ -55,7 +55,7 @@ func TestDecodeString(t *testing.T) {
 func TestEncodeUint32(t *testing.T) {
 	length := uint32(231231)
 
-	bytes, err := EncodeUint32(msgFileLength, length)
+	bytes, err := encodeUint32(msgFileLength, length)
 	if err != nil {
 		t.Fatalf("failed encode: %v", err)
 	}
@@ -80,8 +80,8 @@ func TestEncodeUint32(t *testing.T) {
 func TestDecodeUint32(t *testing.T) {
 	length := uint32(231231)
 
-	bytes, _ := EncodeUint32(msgFileLength, length)
-	fieldType, s, err := DecodeUint32(bytes)
+	bytes, _ := encodeUint32(msgFileLength, length)
+	fieldType, s, err := decodeUint32(bytes)
 	if err != nil {
 		t.Fatalf("failed decode: %v", err)
 	}
