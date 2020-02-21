@@ -1,4 +1,4 @@
-package relay
+package session
 
 import (
 	"encoding/binary"

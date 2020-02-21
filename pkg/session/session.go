@@ -1,7 +1,8 @@
-package relay
+package session
 
 import (
 	"fmt"
+	"io"
 	"net"
 )
 
@@ -109,6 +110,28 @@ func (s *Session) SendRecvReady() error {
 		return err
 	}
 	_, err = s.conn.Write(bs)
+	return err
+}
+
+// Informs server that client is a receiver.
+// Informs sender that receiver is connected and ready.
+func (s *Session) WaitForRecv() error {
+	bs, err := s.nextFrame()
+	if err != nil {
+		return err
+	}
+	b, err := decodeByte(bs)
+	if err != nil {
+		return err
+	}
+	if b != msgRecv {
+		return fmt.Errorf("expected %v, got %v", msgRecv, b)
+	}
+	return nil
+}
+
+func (s *Session) Send(r io.Reader) error {
+	_, err := io.Copy(s.conn, r)
 	return err
 }
 

@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
+	"github.com/blissd/golang-storj-solution/pkg/session"
 	"log"
 	"net"
 	"os"
+	"path"
 )
 
 func main() {
@@ -20,16 +22,44 @@ func main() {
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		log.Fatalln("Failed to opening file:", err)
+		log.Fatalln("failed to opening file:", err)
 	}
 	defer file.Close()
 
-	// chat with relay server to initiate a transfer session
-
-	con, err := net.Dial("tcp", addr)
+	s, err := session.New(addr)
 	if err != nil {
-		log.Fatalln("Failed dialing relay server:", err)
+		log.Fatalln("failed creating session:", err)
 	}
 
-	con.Write(relay.Start())
+	if err = s.SendSendReady(); err != nil {
+		log.Fatalln("failed starting send session:", err)
+	}
+
+	secret, err := s.RecvSecret()
+	if err != nil {
+		log.Fatalln("failed receiving secret:", err)
+	}
+
+	fmt.Println(secret)
+
+	if err = s.WaitForRecv(); err != nil {
+		log.Fatalln("failed waiting for receiver:", err)
+	}
+
+	if err = s.SendFileName(path.Base(filePath)); err != nil {
+		log.Fatalln("failed sending file name:", err)
+	}
+
+	info, err := os.Stat(filePath)
+	if err != nil {
+		log.Fatalln("failed getting file info:", err)
+	}
+
+	if err = s.SendFileLength(uint32(info.Size())); err != nil {
+		log.Fatalln("failed sending file length:", err)
+	}
+
+	if err = s.Send(file); err != nil {
+		log.Fatalln("failed sending file contents:", err)
+	}
 }
