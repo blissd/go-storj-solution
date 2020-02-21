@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/blissd/golang-storj-solution/pkg/session"
 	"log"
 	"os"
@@ -17,8 +16,6 @@ func main() {
 	addr := os.Args[1]
 	secret := os.Args[2]
 	dir := os.Args[3]
-
-	fmt.Println("addr:", addr, "secret:", secret, "dir:", dir)
 
 	s, err := session.New(addr)
 	if err != nil {

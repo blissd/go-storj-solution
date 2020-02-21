@@ -1,8 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"github.com/blissd/golang-storj-solution/pkg/session"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -26,7 +26,6 @@ func main() {
 	}
 
 	addr := os.Args[1]
-	fmt.Println("Port is", addr)
 
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -34,12 +33,11 @@ func main() {
 	}
 	defer l.Close()
 
-	var onboarding chan client
+	onboarding := make(chan client)
+	go onboard(onboarding)
 
 	for {
-		log.Println("before")
 		conn, err := l.Accept()
-		log.Println("after")
 		if err != nil {
 			log.Fatalln("failed to accept connection:", err)
 		}
@@ -48,17 +46,21 @@ func main() {
 	}
 }
 
-func onboard(clients <-chan client) {
+func onboard(clients chan client) {
 	transfers := make(map[string]transfer)
+	log.Println("go onboard")
 	for c := range clients {
+		log.Println("onboard for client:", c)
 		switch c.side {
 		case session.MsgSend:
+			log.Println("onboarding sender for", c.secret)
 			if _, ok := transfers[c.secret]; ok {
 				log.Println("skipping duplicate send client:", c.secret)
 				continue
 			}
 			transfers[c.secret] = transfer{send: c.conn}
 		case session.MsgRecv:
+			log.Println("onboarding receiver for", c.secret)
 			if _, ok := transfers[c.secret]; !ok {
 				log.Println("skipping recv client because no active transfer:", c.secret)
 				continue
@@ -67,39 +69,24 @@ func onboard(clients <-chan client) {
 			t.recv = c.conn
 
 			// sender and receiver are connect so now start relaying traffic
-			log.Println("TODO - relay traffic")
+			log.Println("relay traffic")
+			go t.Run()
 		default:
 			log.Println("skipping client because side is invalid:", c.side)
 		}
 	}
 }
 
-// inspects the first two bytes of a connection to determine if
-// it is for a sender or receiver.
-func route(conn net.Conn) {
-	s := session.Attach(conn)
-	b, err := s.FirstByte()
-	if err != nil {
-		log.Println("failed getting first byte:", err)
-		return
-	}
+func (t *transfer) Run() {
+	// first send byte to sender to indicate receiver is ready
+	s := session.Attach(t.send)
+	s.SendRecvReady()
 
-	switch b {
-	case session.MsgSend:
-		log.Println("sender connected")
-	case session.MsgRecv:
-		log.Println("receiver connected")
-	default:
-		log.Println("invalid start byte:", b)
-		return
-	}
-
+	// Now just pipe from sender to receiver
+	io.Copy(t.recv, t.send)
 }
 
-func handle(conn net.Conn, onboarding chan<- client) {
-
-	log.Println("onboarding")
-
+func handle(conn net.Conn, onboarding chan client) {
 	s := session.Attach(conn)
 	clientType, err := s.FirstByte()
 
@@ -109,10 +96,13 @@ func handle(conn net.Conn, onboarding chan<- client) {
 		return
 	}
 
+	log.Println("onboarding for", clientType)
+
 	var secret string
 
 	switch clientType {
 	case session.MsgSend:
+		log.Println("sending secret")
 		secret = "123abc"
 		err = s.SendSecret(secret)
 		if err != nil {
@@ -121,6 +111,7 @@ func handle(conn net.Conn, onboarding chan<- client) {
 			return
 		}
 	case session.MsgRecv:
+		log.Println("receiving secret")
 		secret, err = s.RecvSecret()
 		if err != nil {
 			log.Println("onboarding:", err)
@@ -133,11 +124,11 @@ func handle(conn net.Conn, onboarding chan<- client) {
 		return
 	}
 
+	log.Println("client is onboarded, sending message")
 	c := client{
 		conn:   conn,
 		side:   clientType,
 		secret: secret,
 	}
 	onboarding <- c
-
 }
