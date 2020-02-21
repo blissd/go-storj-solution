@@ -71,7 +71,7 @@ func decodeUint32(bs []byte) (byte, uint32, error) {
 
 // Encodes a single byte. Intended to be used to send flags between processes.
 func EncodeByte(b byte) ([]byte, error) {
-	return []byte{2, b}, nil
+	return []byte{1, b}, nil
 }
 
 func DecodeByte(bs []byte) (byte, error) {

@@ -32,14 +32,19 @@ func main() {
 	if err != nil {
 		log.Fatalln("failed to listen:", err)
 	}
+	defer l.Close()
+
+	var onboarding chan client
 
 	for {
+		log.Println("before")
 		conn, err := l.Accept()
+		log.Println("after")
 		if err != nil {
 			log.Fatalln("failed to accept connection:", err)
 		}
 
-		go handle(conn)
+		go handle(conn, onboarding)
 	}
 }
 
@@ -91,6 +96,48 @@ func route(conn net.Conn) {
 
 }
 
-func handle(conn net.Conn) {
+func handle(conn net.Conn, onboarding chan<- client) {
+
+	log.Println("onboarding")
+
+	s := session.Attach(conn)
+	clientType, err := s.FirstByte()
+
+	if err != nil {
+		log.Println("failed reading first byte:", err)
+		conn.Close()
+		return
+	}
+
+	var secret string
+
+	switch clientType {
+	case session.MsgSend:
+		secret = "123abc"
+		err = s.SendSecret(secret)
+		if err != nil {
+			log.Println("onboarding:", err)
+			conn.Close()
+			return
+		}
+	case session.MsgRecv:
+		secret, err = s.RecvSecret()
+		if err != nil {
+			log.Println("onboarding:", err)
+			conn.Close()
+			return
+		}
+	default:
+		log.Println("must be send/recv:", clientType)
+		conn.Close()
+		return
+	}
+
+	c := client{
+		conn:   conn,
+		side:   clientType,
+		secret: secret,
+	}
+	onboarding <- c
 
 }
