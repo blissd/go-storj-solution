@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"github.com/blissd/golang-storj-solution/pkg/session"
 	"log"
 	"os"
+	"path"
 )
 
 func main() {
@@ -18,4 +20,38 @@ func main() {
 
 	fmt.Println("addr:", addr, "secret:", secret, "dir:", dir)
 
+	s, err := session.New(addr)
+	if err != nil {
+		log.Fatalln("failed creating session:", err)
+	}
+
+	if err = s.SendRecvReady(); err != nil {
+		log.Fatalln("failed starting recv session:", err)
+	}
+
+	err = s.SendSecret(secret)
+	if err != nil {
+		log.Fatalln("failed sending secret:", err)
+	}
+
+	name, err := s.RecvFileName()
+	if err != nil {
+		log.Fatalln("failed receiving file name:", err)
+	}
+
+	length, err := s.RecvFileLength()
+	if err != nil {
+		log.Fatalln("failed receiving file length:", err)
+	}
+
+	filePath := path.Join(dir, name)
+	file, err := os.Create(filePath)
+	if err != nil {
+		log.Fatalln("failed creating output file:", err)
+	}
+	defer file.Close()
+
+	if err = s.Recv(file, int32(length)); err != nil {
+		log.Fatalln("failed receiving file:", err)
+	}
 }

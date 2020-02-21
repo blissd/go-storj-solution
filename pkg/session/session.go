@@ -135,6 +135,11 @@ func (s *Session) Send(r io.Reader) error {
 	return err
 }
 
+func (s *Session) Recv(w io.Writer, length int32) error {
+	_, err := io.CopyN(w, s.conn, int64(length))
+	return err
+}
+
 // reads the next from from the connection
 func (s *Session) nextFrame() ([]byte, error) {
 	length := make([]byte, 1)
