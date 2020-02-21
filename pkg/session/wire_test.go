@@ -9,9 +9,9 @@ import (
 
 func TestEncodeString(t *testing.T) {
 	original := "some text"
-	fieldType := msgFileName
+	id := msgFileName
 
-	bs, err := encodeString(fieldType, original)
+	bs, err := encodeString(id, original)
 	if err != nil {
 		t.Fatalf("failed encode: %v", err)
 	}
@@ -24,7 +24,7 @@ func TestEncodeString(t *testing.T) {
 		t.Fatalf("Expected encoded frame length to be %v, got %v", len(original), bs[0])
 	}
 
-	if bs[1] != fieldType {
+	if bs[1] != id {
 		t.Fatalf("Expected message type of %v, got %v", bs[0], msgFileName)
 	}
 
@@ -38,14 +38,14 @@ func TestDecodeString(t *testing.T) {
 	original := "some_name.txt"
 
 	bs, _ := encodeString(msgSecretCode, original)
-	fieldType, s, err := decodeString(bs)
+	id, s, err := decodeString(bs)
 
 	if err != nil {
 		t.Fatalf("failed decode: %v", err)
 	}
 
-	if fieldType != msgSecretCode {
-		t.Fatalf("expected type to be %v, got %v", msgSecretCode, fieldType)
+	if id != msgSecretCode {
+		t.Fatalf("expected type to be %v, got %v", msgSecretCode, id)
 	}
 
 	if s != original {
@@ -85,13 +85,13 @@ func TestDecodeInt64(t *testing.T) {
 	length := int64(231231)
 
 	bs, _ := encodeInt64(msgFileLength, length)
-	fieldType, s, err := decodeInt64(bs)
+	id, s, err := decodeInt64(bs)
 	if err != nil {
 		t.Fatalf("failed decode: %v", err)
 	}
 
-	if fieldType != msgFileLength {
-		t.Fatalf("expected type of %v, got %v", msgFileLength, fieldType)
+	if id != msgFileLength {
+		t.Fatalf("expected type of %v, got %v", msgFileLength, id)
 	}
 
 	if s != length {

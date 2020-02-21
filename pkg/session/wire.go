@@ -14,7 +14,7 @@ import (
 // byte 0 -> frame length
 // byte 1 -> field name
 // byte 2+ -> string
-func encodeString(fieldType byte, s string) ([]byte, error) {
+func encodeString(id byte, s string) ([]byte, error) {
 	length := uint8(len(s) + 1)
 	if length > 255 {
 		return nil, errors.New("too long")
@@ -22,7 +22,7 @@ func encodeString(fieldType byte, s string) ([]byte, error) {
 
 	var buf bytes.Buffer
 	buf.WriteByte(length)
-	buf.WriteByte(fieldType)
+	buf.WriteByte(id)
 	buf.WriteString(s)
 	return buf.Bytes(), nil
 }
@@ -47,10 +47,10 @@ func decodeString(bs []byte) (byte, string, error) {
 // byte 2-5 -> big endian encoded length
 // No further bytes are encoded, but caller is expected to
 // follow this message with exactly `length` bytes.
-func encodeInt64(fieldType byte, length int64) ([]byte, error) {
+func encodeInt64(id byte, length int64) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteByte(1 + byte(unsafe.Sizeof(length)))
-	buf.WriteByte(fieldType)
+	buf.WriteByte(id)
 	if err := binary.Write(&buf, binary.BigEndian, length); err != nil {
 		return nil, fmt.Errorf("encodeInt64: %w", err)
 	}
