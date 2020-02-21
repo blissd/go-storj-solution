@@ -6,106 +6,88 @@ import (
 	"unsafe"
 )
 
-func TestEncodeStartSend(t *testing.T) {
-	fileName := "some_name.txt"
+func TestEncodeString(t *testing.T) {
+	original := "some text"
+	fieldType := msgFileName
 
-	bytes, err := EncodeFileName(fileName)
+	bytes, err := EncodeString(fieldType, original)
 	if err != nil {
 		t.Fatalf("failed encode: %v", err)
 	}
-	if len(bytes) != 2+len(fileName) {
-		t.Fatalf("frame length incorrect. Expected %v, got %v", len(fileName), len(bytes))
+
+	if len(bytes) != len(original)+2 {
+		t.Fatalf("frame length incorrect. Expected %v, got %v", len(original)+1, len(bytes))
 	}
-	if bytes[0] != msgFileName {
+
+	if bytes[0] != uint8(len(original)+1) {
+		t.Fatalf("Expected encoded frame length to be %v, got %v", len(original), bytes[0])
+	}
+
+	if bytes[1] != fieldType {
 		t.Fatalf("Expected message type of %v, got %v", bytes[0], msgFileName)
-	}
-	if bytes[1] != uint8(len(fileName)) {
-		t.Fatalf("Expected encoded file name length to be %v, got %v", len(fileName), bytes[1])
 	}
 
 	s := string(bytes[2:])
-	if s != fileName {
-		t.Fatalf("Expected file name to be %v, got %v", fileName, s)
+	if s != original {
+		t.Fatalf("Expected string to be %v, got %v", original, s)
 	}
 }
 
-func TestDecodeStartSend(t *testing.T) {
-	fileName := "some_name.txt"
+func TestDecodeString(t *testing.T) {
+	original := "some_name.txt"
 
-	bytes, _ := EncodeFileName(fileName)
-	s, err := DecodeFileName(bytes)
+	bytes, _ := EncodeString(msgSecretCode, original)
+	fieldType, s, err := DecodeString(bytes)
 
 	if err != nil {
 		t.Fatalf("failed decode: %v", err)
 	}
 
-	if s != fileName {
-		t.Fatalf("Expected file name to be %v, got %v", fileName, s)
+	if fieldType != msgSecretCode {
+		t.Fatalf("expected type to be %v, got %v", msgSecretCode, fieldType)
+	}
+
+	if s != original {
+		t.Fatalf("Expected string to be %v, got %v", original, s)
 	}
 }
 
-func TestEncodeSecret(t *testing.T) {
-	secret := "abc123"
-
-	bytes, err := EncodeSecret(secret)
-	if err != nil {
-		t.Fatalf("failed encode: %v", err)
-	}
-	if len(bytes) != 1+len(secret) {
-		t.Fatalf("frame length incorrect. Expected %v, got %v", len(secret), len(bytes))
-	}
-	if bytes[0] != msgSecretCode {
-		t.Fatalf("Expected message type of %v, got %v", bytes[0], msgSecretCode)
-	}
-
-	s := string(bytes[1:])
-	if s != secret {
-		t.Fatalf("Expected %v, got %v", secret, s)
-	}
-}
-
-func TestDecodeSecret(t *testing.T) {
-	secret := "abc123"
-
-	bytes, _ := EncodeSecret(secret)
-	s, err := DecodeSecret(bytes)
-
-	if err != nil {
-		t.Fatalf("failed decode: %v", err)
-	}
-
-	if s != secret {
-		t.Fatalf("Expected %v, got %v", secret, s)
-	}
-}
-
-func TestEncodeContentLength(t *testing.T) {
+func TestEncodeUint32(t *testing.T) {
 	length := uint32(231231)
 
-	bytes, err := EncodeFileLength(length)
+	bytes, err := EncodeUint32(msgFileLength, length)
 	if err != nil {
 		t.Fatalf("failed encode: %v", err)
 	}
-	if len(bytes) != 1+int(unsafe.Sizeof(length)) {
+	if len(bytes) != 2+int(unsafe.Sizeof(length)) {
 		t.Fatalf("frame length incorrect. Expected %v, got %v", 1+unsafe.Sizeof(length), len(bytes))
 	}
-	if bytes[0] != msgFileLength {
+
+	if bytes[0] != 5 {
+		t.Fatalf("Expected frame length of 5, got %v", bytes[0])
+	}
+
+	if bytes[1] != msgFileLength {
 		t.Fatalf("Expected message type of %v, got %v", bytes[0], msgFileLength)
 	}
 
-	s := binary.BigEndian.Uint32(bytes[1:])
+	s := binary.BigEndian.Uint32(bytes[2:])
 	if s != length {
 		t.Fatalf("Expected length to be %v, got %v", length, s)
 	}
 }
 
-func TestDecodeContentLength(t *testing.T) {
+func TestDecodeUint32(t *testing.T) {
 	length := uint32(231231)
 
-	bytes, _ := EncodeFileLength(length)
-	s, err := DecodeFileLength(bytes)
+	bytes, _ := EncodeUint32(msgFileLength, length)
+	fieldType, s, err := DecodeUint32(bytes)
 	if err != nil {
 		t.Fatalf("failed decode: %v", err)
+	}
+
+	if fieldType != msgFileLength {
+		t.Fatalf("expected type of %v, got %v", msgFileLength, fieldType)
 	}
 
 	if s != length {

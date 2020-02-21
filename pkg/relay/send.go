@@ -13,6 +13,24 @@ const (
 	sending state = 3
 )
 
+const (
+
+	// Encoded sender type
+	msgSend byte = 1
+
+	// Encoded receiver type
+	msgRecv byte = 2
+
+	// Encoded secret code
+	msgSecretCode byte = 3
+
+	// Encoded file name.
+	msgFileName byte = 4
+
+	// Encoded file length
+	msgFileLength byte = 5
+)
+
 type Session struct {
 	conn net.Conn
 }
@@ -30,7 +48,7 @@ func New(addr string) (*Session, error) {
 }
 
 func (s *Session) SendFileName(name string) error {
-	bs, err := EncodeFileName(name)
+	bs, err := EncodeString(msgFileName, name)
 	if err != nil {
 		return err
 	}
@@ -59,7 +77,7 @@ func (s *Session) RecvFileName() (string, error) {
 }
 
 func (s *Session) SendSecret(secret string) error {
-	bs, err := EncodeSecret(secret)
+	bs, err := EncodeString(msgSecretCode, secret)
 	if err != nil {
 		return err
 	}
@@ -69,7 +87,7 @@ func (s *Session) SendSecret(secret string) error {
 }
 
 func (s *Session) SendFileLength(length uint32) error {
-	bs, err := EncodeFileLength(length)
+	bs, err := EncodeUint32(msgFileLength, length)
 	if err != nil {
 		return err
 	}
