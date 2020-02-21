@@ -10,3 +10,9 @@ receive:
 
 relay:
 	go build github.com/blissd/golang-storj-solution/cmd/relay
+
+test:
+	go test github.com/blissd/golang-storj-solution/cmd/send \
+		github.com/blissd/golang-storj-solution/cmd/relay \
+		github.com/blissd/golang-storj-solution/cmd/receive \
+		github.com/blissd/golang-storj-solution/pkg/session
