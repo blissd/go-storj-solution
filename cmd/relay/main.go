@@ -43,9 +43,8 @@ func main() {
 	}
 }
 
-func onboard(clients chan<- client) {
+func onboard(clients <-chan client) {
 	transfers := make(map[string]transfer)
-	println(transfers)
 	for c := range clients {
 		switch c.side {
 		case session.MsgSend:

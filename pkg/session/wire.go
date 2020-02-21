@@ -47,15 +47,11 @@ func decodeString(bs []byte) (byte, string, error) {
 // No further bytes are encoded, but caller is expected to
 // follow this message with exactly `length` bytes.
 func encodeUint32(fieldType byte, length uint32) ([]byte, error) {
-	if length <= 0 {
-		return nil, errors.New("msgFileLength must be >= 0")
-	}
-
 	var buf bytes.Buffer
 	buf.WriteByte(5) // type + sizeof(uint32)
 	buf.WriteByte(fieldType)
 	if err := binary.Write(&buf, binary.BigEndian, length); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("encodeUint32: %w", err)
 	}
 	return buf.Bytes(), nil
 }

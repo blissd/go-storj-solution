@@ -43,7 +43,7 @@ func (s *Session) Close() error {
 func New(addr string) (*Session, error) {
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("new session: %w", err)
 	}
 	return &Session{conn: conn}, nil
 }
@@ -56,7 +56,7 @@ func Attach(conn net.Conn) *Session {
 func (s *Session) FirstByte() (byte, error) {
 	bs, err := s.nextFrame()
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("first byte: %w", err)
 	}
 	if bs[0] != 1 {
 		return 0, fmt.Errorf("must have length of 1, but is %v", bs[0])
@@ -86,22 +86,25 @@ func (s *Session) RecvSecret() (string, error) {
 func (s *Session) SendFileLength(length uint32) error {
 	bs, err := encodeUint32(msgFileLength, length)
 	if err != nil {
-		return err
+		return fmt.Errorf("send file length: %w", err)
 	}
 
 	_, err = s.conn.Write(bs)
-	return err
+	if err != nil {
+		return fmt.Errorf("send file length: %w", err)
+	}
+	return nil
 }
 
 func (s *Session) RecvFileLength() (uint32, error) {
 	f, err := s.nextFrame()
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("recv file length: %w", err)
 	}
 
 	ft, v, err := decodeUint32(f)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("recv file length: %w", err)
 	} else if ft != msgFileLength {
 		return 0, fmt.Errorf("expected %v, got %v", msgFileLength, ft)
 	}
@@ -113,7 +116,7 @@ func (s *Session) RecvFileLength() (uint32, error) {
 func (s *Session) SendSendReady() error {
 	bs, err := EncodeByte(MsgSend)
 	if err != nil {
-		return err
+		return fmt.Errorf("send ready: %w", err)
 	}
 	_, err = s.conn.Write(bs)
 	return err
@@ -124,7 +127,7 @@ func (s *Session) SendSendReady() error {
 func (s *Session) SendRecvReady() error {
 	bs, err := EncodeByte(MsgRecv)
 	if err != nil {
-		return err
+		return fmt.Errorf("recv ready: %w", err)
 	}
 	_, err = s.conn.Write(bs)
 	return err
@@ -135,7 +138,7 @@ func (s *Session) SendRecvReady() error {
 func (s *Session) WaitForRecv() error {
 	bs, err := s.nextFrame()
 	if err != nil {
-		return err
+		return fmt.Errorf("wait for recv: %w", err)
 	}
 	b, err := DecodeByte(bs)
 	if err != nil {
@@ -162,7 +165,7 @@ func (s *Session) nextFrame() ([]byte, error) {
 	length := make([]byte, 1)
 	_, err := s.conn.Read(length)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("next frame: %w", err)
 	}
 
 	frame := make([]byte, length[0]+1)
@@ -174,23 +177,27 @@ func (s *Session) nextFrame() ([]byte, error) {
 func (s *Session) sendString(fieldType byte, v string) error {
 	bs, err := encodeString(fieldType, v)
 	if err != nil {
-		return err
+		return fmt.Errorf("send string: %w", err)
 	}
 
 	_, err = s.conn.Write(bs)
-	return err
+	if err != nil {
+		return fmt.Errorf("send string: %w", err)
+	}
+
+	return nil
 }
 
 func (s *Session) recvString(fieldType byte) (string, error) {
 	f, err := s.nextFrame()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("recv string: %w", err)
 	}
 
 	ft, v, err := decodeString(f)
 
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("recv string: %w", err)
 	} else if ft != fieldType {
 		return "", fmt.Errorf("expected %v, got %v", fieldType, ft)
 	}
