@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/blissd/golang-storj-solution/pkg/session"
 	"log"
-	"net"
 	"os"
 	"path"
 )
@@ -18,7 +17,7 @@ func main() {
 	addr := os.Args[1]
 	filePath := os.Args[2]
 
-	fmt.Println("addr:", addr, "file:", file)
+	fmt.Println("addr:", addr, "file:", filePath)
 
 	file, err := os.Open(filePath)
 	if err != nil {
