@@ -74,11 +74,11 @@ func decodeUint32(bs []byte) (byte, uint32, error) {
 }
 
 // Encodes a single byte. Intended to be used to send flags between processes.
-func encodeByte(b byte) ([]byte, error) {
+func EncodeByte(b byte) ([]byte, error) {
 	return []byte{2, b}, nil
 }
 
-func decodeByte(bs []byte) (byte, error) {
+func DecodeByte(bs []byte) (byte, error) {
 	if len(bs) != 2 {
 		return 0, fmt.Errorf("must have length of 3, but is %v bytes", len(bs))
 	}

@@ -17,10 +17,10 @@ const (
 const (
 
 	// Encoded sender type
-	msgSend byte = 1
+	MsgSend byte = 1
 
 	// Encoded receiver type
-	msgRecv byte = 2
+	MsgRecv byte = 2
 
 	// Encoded secret code
 	msgSecretCode byte = 3
@@ -46,6 +46,23 @@ func New(addr string) (*Session, error) {
 		return nil, err
 	}
 	return &Session{conn: conn}, nil
+}
+
+func Attach(conn net.Conn) *Session {
+	return &Session{conn: conn}
+}
+
+// get the first message sent to a new connection
+func (s *Session) FirstByte() (byte, error) {
+	bs, err := s.nextFrame()
+	if err != nil {
+		return 0, err
+	}
+	if bs[0] != 1 {
+		return 0, fmt.Errorf("must have length of 1, but is %v", bs[0])
+	}
+
+	return bs[1], nil
 }
 
 func (s *Session) SendFileName(name string) error {
@@ -94,7 +111,7 @@ func (s *Session) RecvFileLength() (uint32, error) {
 // Informs server that client is a receiver.
 // Informs sender that receiver is connected and ready.
 func (s *Session) SendSendReady() error {
-	bs, err := encodeByte(msgSend)
+	bs, err := EncodeByte(MsgSend)
 	if err != nil {
 		return err
 	}
@@ -105,7 +122,7 @@ func (s *Session) SendSendReady() error {
 // Informs server that client is a receiver.
 // Informs sender that receiver is connected and ready.
 func (s *Session) SendRecvReady() error {
-	bs, err := encodeByte(msgRecv)
+	bs, err := EncodeByte(MsgRecv)
 	if err != nil {
 		return err
 	}
@@ -120,12 +137,12 @@ func (s *Session) WaitForRecv() error {
 	if err != nil {
 		return err
 	}
-	b, err := decodeByte(bs)
+	b, err := DecodeByte(bs)
 	if err != nil {
 		return err
 	}
-	if b != msgRecv {
-		return fmt.Errorf("expected %v, got %v", msgRecv, b)
+	if b != MsgRecv {
+		return fmt.Errorf("expected %v, got %v", MsgRecv, b)
 	}
 	return nil
 }
