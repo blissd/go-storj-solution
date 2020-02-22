@@ -5,8 +5,22 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"unsafe"
 )
+
+func NextFrame(r io.Reader) ([]byte, error) {
+	length := make([]byte, 1)
+	_, err := r.Read(length)
+	if err != nil {
+		return nil, fmt.Errorf("next frame: %w", err)
+	}
+
+	frame := make([]byte, length[0]+1)
+	frame[0] = length[0]
+	_, err = r.Read(frame[1:])
+	return frame, err
+}
 
 // Format a string, such as a file name or a secret code.
 // String has max length of 254 bytes.

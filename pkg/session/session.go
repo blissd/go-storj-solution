@@ -55,7 +55,7 @@ func Attach(conn net.Conn) *Session {
 
 // get the first message sent to a new connection
 func (s *Session) FirstByte() (byte, error) {
-	bs, err := s.nextFrame()
+	bs, err := wire.NextFrame(s.conn)
 	if err != nil {
 		return 0, fmt.Errorf("first byte: %w", err)
 	}
@@ -98,7 +98,7 @@ func (s *Session) SendFileLength(length int64) error {
 }
 
 func (s *Session) RecvFileLength() (int64, error) {
-	f, err := s.nextFrame()
+	f, err := wire.NextFrame(s.conn)
 	if err != nil {
 		return 0, fmt.Errorf("recv file length: %w", err)
 	}
@@ -137,7 +137,7 @@ func (s *Session) SendRecvReady() error {
 // Informs server that client is a receiver.
 // Informs sender that receiver is connected and ready.
 func (s *Session) WaitForRecv() error {
-	bs, err := s.nextFrame()
+	bs, err := wire.NextFrame(s.conn)
 	if err != nil {
 		return fmt.Errorf("wait for recv: %w", err)
 	}
@@ -159,20 +159,6 @@ func (s *Session) Recv(w io.Writer) (int64, error) {
 	return io.Copy(w, s.conn)
 }
 
-// reads the next from from the connection
-func (s *Session) nextFrame() ([]byte, error) {
-	length := make([]byte, 1)
-	_, err := s.conn.Read(length)
-	if err != nil {
-		return nil, fmt.Errorf("next frame: %w", err)
-	}
-
-	frame := make([]byte, length[0]+1)
-	frame[0] = length[0]
-	_, err = s.conn.Read(frame[1:])
-	return frame, err
-}
-
 func (s *Session) sendString(id byte, v string) error {
 	bs, err := wire.EncodeString(id, v)
 	if err != nil {
@@ -188,7 +174,7 @@ func (s *Session) sendString(id byte, v string) error {
 }
 
 func (s *Session) recvString(id byte) (string, error) {
-	f, err := s.nextFrame()
+	f, err := wire.NextFrame(s.conn)
 	if err != nil {
 		return "", fmt.Errorf("recv string: %w", err)
 	}
