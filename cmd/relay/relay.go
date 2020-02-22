@@ -4,11 +4,8 @@ import (
 	"github.com/blissd/golang-storj-solution/pkg/session"
 	"io"
 	"log"
-	"math/rand"
 	"net"
 )
-
-const secretLength = 6
 
 // a sender or receiver connecting to the relay
 type client struct {
@@ -28,6 +25,7 @@ type tx struct {
 	recv   net.Conn
 }
 
+// Copies bytes from sender to receiver
 func (t *tx) Run(r *relay) {
 	// first send byte to sender to indicate receiver is ready
 	defer r.close(t.secret)
@@ -159,14 +157,4 @@ func (r *relay) close(secret string) {
 			}
 		}
 	}
-}
-
-var letters = []byte("abcdefghijklmnopqrstuvwxyz0123456789")
-
-func generateSecret(n int) string {
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(b)
 }
