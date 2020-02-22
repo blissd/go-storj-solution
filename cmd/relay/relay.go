@@ -12,16 +12,35 @@ const secretLength = 6
 
 // a sender or receiver connecting to the relay
 type client struct {
-	conn   net.Conn
-	side   byte
+	// connection to client
+	conn net.Conn
+	// send or recv
+	side byte
+	// secret identifies transfer
 	secret string
 }
 
 // an ongoing transfer between sender and receiver
 type tx struct {
+	// unique key for transfer
 	secret string
 	send   net.Conn
 	recv   net.Conn
+}
+
+func (t *tx) Run(r *relay) {
+	// first send byte to sender to indicate receiver is ready
+	defer r.close(t.secret)
+	s := session.Attach(t.send)
+	if err := s.SendRecvReady(); err != nil {
+		log.Println("send recv ready failed:", err)
+		return
+	}
+
+	// Now just pipe from sender to receiver
+	if _, err := io.Copy(t.recv, t.send); err != nil {
+		log.Println("copy failed for:", t.secret, "with:", err)
+	}
 }
 
 // Manages transfers
@@ -38,74 +57,6 @@ type relay struct {
 func (r *relay) run() {
 	for a := range r.action {
 		a()
-	}
-}
-
-// cleans up after ending a transfer for any reason
-func (r *relay) close(secret string) {
-	r.action <- func() {
-		log.Println("closing:", secret)
-		defer delete(r.transfers, secret)
-		if t, ok := r.transfers[secret]; ok {
-			if t.send != nil {
-				log.Println("closing send:", secret)
-				t.send.Close()
-			}
-			if t.recv != nil {
-				log.Println("closing recv:", secret)
-				t.recv.Close()
-			}
-		}
-	}
-}
-
-// Joins a new client, either starting a new session for a sender or
-// connecting a receiver to an existing session.
-func (r *relay) join(c client) {
-	r.action <- func() {
-		log.Println("join for client:", c)
-		switch c.side {
-		case session.MsgSend:
-			log.Println("onboarding sender for", c.secret)
-			if _, ok := r.transfers[c.secret]; ok {
-				log.Println("skipping duplicate send client:", c.secret)
-				return
-			}
-			r.transfers[c.secret] = tx{secret: c.secret, send: c.conn}
-		case session.MsgRecv:
-			log.Println("onboarding receiver for", c.secret)
-			if _, ok := r.transfers[c.secret]; !ok {
-				log.Println("skipping recv client because no active tx:", c.secret)
-				return
-			}
-			t := r.transfers[c.secret]
-			t.recv = c.conn
-
-			// Not a map of pointers, so setting t.recv doesn't update r.transfers[c.secret].recv!
-			// Should I use a map of pointers to tx?
-			r.transfers[c.secret] = t
-
-			// sender and receiver are connect so now start relaying traffic
-			log.Println("relay traffic")
-			go t.Run(r)
-		default:
-			log.Println("skipping client because side is invalid:", c.side)
-		}
-	}
-}
-
-func (t *tx) Run(r *relay) {
-	// first send byte to sender to indicate receiver is ready
-	defer r.close(t.secret)
-	s := session.Attach(t.send)
-	if err := s.SendRecvReady(); err != nil {
-		log.Println("send recv ready failed:", err)
-		return
-	}
-
-	// Now just pipe from sender to receiver
-	if _, err := io.Copy(t.recv, t.send); err != nil {
-		log.Println("copy failed for:", t.secret, "with:", err)
 	}
 }
 
@@ -155,6 +106,59 @@ func (r *relay) onboard(conn net.Conn) {
 		secret: secret,
 	}
 	r.join(c)
+}
+
+// Joins a new client, either starting a new session for a sender or
+// connecting a receiver to an existing session.
+func (r *relay) join(c client) {
+	r.action <- func() {
+		log.Println("join for client:", c)
+		switch c.side {
+		case session.MsgSend:
+			log.Println("onboarding sender for", c.secret)
+			if _, ok := r.transfers[c.secret]; ok {
+				log.Println("skipping duplicate send client:", c.secret)
+				return
+			}
+			r.transfers[c.secret] = tx{secret: c.secret, send: c.conn}
+		case session.MsgRecv:
+			log.Println("onboarding receiver for", c.secret)
+			if _, ok := r.transfers[c.secret]; !ok {
+				log.Println("skipping recv client because no active tx:", c.secret)
+				return
+			}
+			t := r.transfers[c.secret]
+			t.recv = c.conn
+
+			// Not a map of pointers, so setting t.recv doesn't update r.transfers[c.secret].recv!
+			// Should I use a map of pointers to tx?
+			r.transfers[c.secret] = t
+
+			// sender and receiver are connect so now start relaying traffic
+			log.Println("relay traffic")
+			go t.Run(r)
+		default:
+			log.Println("skipping client because side is invalid:", c.side)
+		}
+	}
+}
+
+// cleans up after ending a transfer for any reason
+func (r *relay) close(secret string) {
+	r.action <- func() {
+		log.Println("closing:", secret)
+		defer delete(r.transfers, secret)
+		if t, ok := r.transfers[secret]; ok {
+			if t.send != nil {
+				log.Println("closing send:", secret)
+				t.send.Close()
+			}
+			if t.recv != nil {
+				log.Println("closing recv:", secret)
+				t.recv.Close()
+			}
+		}
+	}
 }
 
 var letters = []byte("abcdefghijklmnopqrstuvwxyz0123456789")
