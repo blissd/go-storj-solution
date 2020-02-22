@@ -2,6 +2,7 @@ package session
 
 import (
 	"fmt"
+	"github.com/blissd/golang-storj-solution/pkg/wire"
 	"io"
 	"net"
 )
@@ -84,7 +85,7 @@ func (s *Session) RecvSecret() (string, error) {
 }
 
 func (s *Session) SendFileLength(length int64) error {
-	bs, err := encodeInt64(msgFileLength, length)
+	bs, err := wire.EncodeInt64(msgFileLength, length)
 	if err != nil {
 		return fmt.Errorf("send file length: %w", err)
 	}
@@ -102,7 +103,7 @@ func (s *Session) RecvFileLength() (int64, error) {
 		return 0, fmt.Errorf("recv file length: %w", err)
 	}
 
-	ft, v, err := decodeInt64(f)
+	ft, v, err := wire.DecodeInt64(f)
 	if err != nil {
 		return 0, fmt.Errorf("recv file length: %w", err)
 	} else if ft != msgFileLength {
@@ -114,7 +115,7 @@ func (s *Session) RecvFileLength() (int64, error) {
 // Informs server that client is a receiver.
 // Informs sender that receiver is connected and ready.
 func (s *Session) SendSendReady() error {
-	bs, err := EncodeByte(MsgSend)
+	bs, err := wire.EncodeByte(MsgSend)
 	if err != nil {
 		return fmt.Errorf("send ready: %w", err)
 	}
@@ -125,7 +126,7 @@ func (s *Session) SendSendReady() error {
 // Informs server that client is a receiver.
 // Informs sender that receiver is connected and ready.
 func (s *Session) SendRecvReady() error {
-	bs, err := EncodeByte(MsgRecv)
+	bs, err := wire.EncodeByte(MsgRecv)
 	if err != nil {
 		return fmt.Errorf("recv ready: %w", err)
 	}
@@ -140,7 +141,7 @@ func (s *Session) WaitForRecv() error {
 	if err != nil {
 		return fmt.Errorf("wait for recv: %w", err)
 	}
-	b, err := DecodeByte(bs)
+	b, err := wire.DecodeByte(bs)
 	if err != nil {
 		return err
 	}
@@ -173,7 +174,7 @@ func (s *Session) nextFrame() ([]byte, error) {
 }
 
 func (s *Session) sendString(id byte, v string) error {
-	bs, err := encodeString(id, v)
+	bs, err := wire.EncodeString(id, v)
 	if err != nil {
 		return fmt.Errorf("send string: %w", err)
 	}
@@ -192,7 +193,7 @@ func (s *Session) recvString(id byte) (string, error) {
 		return "", fmt.Errorf("recv string: %w", err)
 	}
 
-	ft, v, err := decodeString(f)
+	ft, v, err := wire.DecodeString(f)
 
 	if err != nil {
 		return "", fmt.Errorf("recv string: %w", err)

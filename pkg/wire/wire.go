@@ -1,4 +1,4 @@
-package session
+package wire
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ import (
 // byte 0 -> frame length
 // byte 1 -> field name
 // byte 2+ -> string
-func encodeString(id byte, s string) ([]byte, error) {
+func EncodeString(id byte, s string) ([]byte, error) {
 	length := uint8(len(s) + 1)
 	if length > 255 {
 		return nil, errors.New("too long")
@@ -27,7 +27,7 @@ func encodeString(id byte, s string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeString(bs []byte) (byte, string, error) {
+func DecodeString(bs []byte) (byte, string, error) {
 	if len(bs) <= 2 {
 		return 0, "", errors.New("bad frame")
 	}
@@ -47,17 +47,17 @@ func decodeString(bs []byte) (byte, string, error) {
 // byte 2-5 -> big endian encoded length
 // No further bytes are encoded, but caller is expected to
 // follow this message with exactly `length` bytes.
-func encodeInt64(id byte, length int64) ([]byte, error) {
+func EncodeInt64(id byte, length int64) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteByte(1 + byte(unsafe.Sizeof(length)))
 	buf.WriteByte(id)
 	if err := binary.Write(&buf, binary.BigEndian, length); err != nil {
-		return nil, fmt.Errorf("encodeInt64: %w", err)
+		return nil, fmt.Errorf("EncodeInt64: %w", err)
 	}
 	return buf.Bytes(), nil
 }
 
-func decodeInt64(bs []byte) (byte, int64, error) {
+func DecodeInt64(bs []byte) (byte, int64, error) {
 	if len(bs) < 2 {
 		return 0, 0, errors.New("bad frame")
 	}
@@ -69,7 +69,7 @@ func decodeInt64(bs []byte) (byte, int64, error) {
 
 	buf := bytes.NewBuffer(bs[2:])
 	if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
-		return 0, 0, fmt.Errorf("decodeInt64: %w", err)
+		return 0, 0, fmt.Errorf("DecodeInt64: %w", err)
 	}
 	return bs[1], length, nil
 }

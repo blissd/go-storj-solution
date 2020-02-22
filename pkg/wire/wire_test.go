@@ -1,4 +1,4 @@
-package session
+package wire
 
 import (
 	"bytes"
@@ -9,9 +9,9 @@ import (
 
 func TestEncodeString(t *testing.T) {
 	original := "some text"
-	id := msgFileName
+	originalId := byte(65)
 
-	bs, err := encodeString(id, original)
+	bs, err := EncodeString(originalId, original)
 	if err != nil {
 		t.Fatalf("failed encode: %v", err)
 	}
@@ -24,8 +24,8 @@ func TestEncodeString(t *testing.T) {
 		t.Fatalf("Expected encoded frame length to be %v, got %v", len(original), bs[0])
 	}
 
-	if bs[1] != id {
-		t.Fatalf("Expected message type of %v, got %v", bs[0], msgFileName)
+	if bs[1] != originalId {
+		t.Fatalf("Expected message type of %v, got %v", bs[0], originalId)
 	}
 
 	s := string(bs[2:])
@@ -36,16 +36,17 @@ func TestEncodeString(t *testing.T) {
 
 func TestDecodeString(t *testing.T) {
 	original := "some_name.txt"
+	originalId := byte(3)
 
-	bs, _ := encodeString(msgSecretCode, original)
-	id, s, err := decodeString(bs)
+	bs, _ := EncodeString(originalId, original)
+	id, s, err := DecodeString(bs)
 
 	if err != nil {
 		t.Fatalf("failed decode: %v", err)
 	}
 
-	if id != msgSecretCode {
-		t.Fatalf("expected type to be %v, got %v", msgSecretCode, id)
+	if id != originalId {
+		t.Fatalf("expected type to be %v, got %v", originalId, id)
 	}
 
 	if s != original {
@@ -55,8 +56,9 @@ func TestDecodeString(t *testing.T) {
 
 func TestEncodeInt64(t *testing.T) {
 	length := int64(231231)
+	originalId := byte(8)
 
-	bs, err := encodeInt64(msgFileLength, length)
+	bs, err := EncodeInt64(originalId, length)
 	if err != nil {
 		t.Fatalf("failed encode: %v", err)
 	}
@@ -68,8 +70,8 @@ func TestEncodeInt64(t *testing.T) {
 		t.Fatalf("Expected frame length of %v, got %v", 1+byte(unsafe.Sizeof(length)), bs[0])
 	}
 
-	if bs[1] != msgFileLength {
-		t.Fatalf("Expected message type of %v, got %v", bs[0], msgFileLength)
+	if bs[1] != originalId {
+		t.Fatalf("Expected message type of %v, got %v", bs[0], originalId)
 	}
 
 	var s int64
@@ -83,15 +85,16 @@ func TestEncodeInt64(t *testing.T) {
 
 func TestDecodeInt64(t *testing.T) {
 	length := int64(231231)
+	originalId := byte(127)
 
-	bs, _ := encodeInt64(msgFileLength, length)
-	id, s, err := decodeInt64(bs)
+	bs, _ := EncodeInt64(originalId, length)
+	id, s, err := DecodeInt64(bs)
 	if err != nil {
 		t.Fatalf("failed decode: %v", err)
 	}
 
-	if id != msgFileLength {
-		t.Fatalf("expected type of %v, got %v", msgFileLength, id)
+	if id != originalId {
+		t.Fatalf("expected type of %v, got %v", originalId, id)
 	}
 
 	if s != length {
