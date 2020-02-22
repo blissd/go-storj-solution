@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/blissd/golang-storj-solution/pkg/session"
+	"github.com/blissd/golang-storj-solution/pkg/wire"
 	"io"
 	"log"
 	"net"
@@ -32,6 +33,7 @@ func (t *tx) Run(r *relay) {
 
 	// Send "receiver is ready" message to sender so that the
 	// sender can start sending bytes.
+	wire.EncodeByte(session.MsgRecv)
 	if err := s.SendRecvReady(); err != nil {
 		log.Println("send recv ready failed:", err)
 		return

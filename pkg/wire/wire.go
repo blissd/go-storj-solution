@@ -1,3 +1,12 @@
+// Package wire proves protocol framing functions.
+// The data types, byte, string, and int64 can be encoded
+// into frames suitable for sending across a network connection.
+// The frame format is as follows:
+// byte 0 - frame length, max 255 bytes
+// byte 1 - frame id, effectively the type of frame.
+// byte 2+ - frame payload, up to 253 bytes
+// Frames don't encode any type information It is up to the caller to
+// understand what type correlates to what frame id.
 package wire
 
 import (
@@ -59,13 +68,11 @@ func DecodeString(bs []byte) (byte, string, error) {
 // byte 0 -> frame size
 // byte 1 -> field type. Always 5.
 // byte 2-5 -> big endian encoded length
-// No further bytes are encoded, but caller is expected to
-// follow this message with exactly `length` bytes.
-func EncodeInt64(id byte, length int64) ([]byte, error) {
+func EncodeInt64(id byte, i int64) ([]byte, error) {
 	var buf bytes.Buffer
-	buf.WriteByte(1 + byte(unsafe.Sizeof(length)))
+	buf.WriteByte(1 + byte(unsafe.Sizeof(i)))
 	buf.WriteByte(id)
-	if err := binary.Write(&buf, binary.BigEndian, length); err != nil {
+	if err := binary.Write(&buf, binary.BigEndian, i); err != nil {
 		return nil, fmt.Errorf("EncodeInt64: %w", err)
 	}
 	return buf.Bytes(), nil
@@ -76,16 +83,16 @@ func DecodeInt64(bs []byte) (byte, int64, error) {
 		return 0, 0, errors.New("bad frame")
 	}
 
-	var length int64
-	if bs[0] != 1+byte(unsafe.Sizeof(length)) {
+	var i int64
+	if bs[0] != 1+byte(unsafe.Sizeof(i)) {
 		return 0, 0, fmt.Errorf("frame too short: %v", bs[0])
 	}
 
 	buf := bytes.NewBuffer(bs[2:])
-	if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
+	if err := binary.Read(buf, binary.BigEndian, &i); err != nil {
 		return 0, 0, fmt.Errorf("DecodeInt64: %w", err)
 	}
-	return bs[1], length, nil
+	return bs[1], i, nil
 }
 
 // Encodes a single byte. Intended to be used to send flags between processes.
