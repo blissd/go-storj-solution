@@ -78,6 +78,7 @@ func (r *relay) join(c client) {
 			}
 			t := r.transfers[c.secret]
 			t.recv = c.conn
+			r.transfers[c.secret] = t
 
 			// sender and receiver are connect so now start relaying traffic
 			log.Println("relay traffic")
