@@ -25,6 +25,7 @@ func main() {
 	if err != nil {
 		log.Fatalln("failed creating session:", err)
 	}
+	defer s.Close()
 
 	if err = s.SendRecvReady(); err != nil {
 		log.Fatalln("failed starting recv session:", err)

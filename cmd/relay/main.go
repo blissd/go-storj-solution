@@ -4,9 +4,12 @@ import (
 	"github.com/blissd/golang-storj-solution/pkg/session"
 	"io"
 	"log"
+	"math/rand"
 	"net"
 	"os"
 )
+
+const secretLength = 6
 
 // a sender or receiver connecting to the relay
 type client struct {
@@ -121,13 +124,16 @@ func main() {
 
 func (t *tx) Run(r *relay) {
 	// first send byte to sender to indicate receiver is ready
+	defer r.close(t.secret)
 	s := session.Attach(t.send)
-	s.SendRecvReady()
+	if err := s.SendRecvReady(); err != nil {
+		log.Println("send recv ready failed:", err)
+	}
 
 	// Now just pipe from sender to receiver
-	io.Copy(t.recv, t.send)
-
-	r.close(t.secret)
+	if _, err := io.Copy(t.recv, t.send); err != nil {
+		log.Println("copy failed for:", t.secret, "with:", err)
+	}
 }
 
 func onboard(conn net.Conn, r *relay) {
@@ -147,7 +153,9 @@ func onboard(conn net.Conn, r *relay) {
 	switch clientType {
 	case session.MsgSend:
 		log.Println("sending secret")
-		secret = "123abc"
+		//secret = "abc123"
+		secret = generateSecret(secretLength)
+		log.Println("generated secret is", secret)
 		err = s.SendSecret(secret)
 		if err != nil {
 			log.Println("onboarding:", err)
@@ -168,11 +176,20 @@ func onboard(conn net.Conn, r *relay) {
 		return
 	}
 
-	log.Println("client is onboarded, sending message")
 	c := client{
 		conn:   conn,
 		side:   clientType,
 		secret: secret,
 	}
 	r.join(c)
+}
+
+var letters = []byte("abcdefghijklmnopqrstuvwxyz0123456789")
+
+func generateSecret(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
 }
