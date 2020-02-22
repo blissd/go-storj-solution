@@ -27,24 +27,30 @@ type tx struct {
 
 // Copies bytes from sender to receiver
 func (t *tx) Run(r *relay) {
-	// first send byte to sender to indicate receiver is ready
 	defer r.close(t.secret)
 	s := session.Attach(t.send)
+
+	// Send "receiver is ready" message to sender so that the
+	// sender can start sending bytes.
 	if err := s.SendRecvReady(); err != nil {
 		log.Println("send recv ready failed:", err)
 		return
 	}
 
 	// Now just pipe from sender to receiver
+	// Note that the relay server doesn't care what messages are passed.
 	if _, err := io.Copy(t.recv, t.send); err != nil {
-		log.Println("copy failed for:", t.secret, "with:", err)
+		log.Println("tx.Run for:", t.secret, " failed with:", err)
 	}
 }
 
 // Manages transfers
 type relay struct {
-	// ongoing transfers
+	// Ongoing transfers
 	transfers map[string]tx
+
+	// Generator of transfer session secrets
+	secrets Secrets
 
 	// Actions to add or remove transfers.
 	// `relay` is effectively an actor.
@@ -52,12 +58,18 @@ type relay struct {
 }
 
 // Process actions to update relay state, such as clients joining and leaving a transfer
+// Functions sent to r.action must be non-blocking.
 func (r *relay) run() {
 	for a := range r.action {
 		a()
 	}
 }
 
+// Onboards a new connection for a sender or a receiver.
+// For a sender a secret will be generated and sent to the sender.
+// For a receiver a secret will be read from the connection.
+// A valid client then joins a transfer, either creating it for a sender
+// or being associated with an existing transform for a receiver.
 func (r *relay) onboard(conn net.Conn) {
 	s := session.Attach(conn)
 	clientType, err := s.FirstByte()
@@ -75,8 +87,7 @@ func (r *relay) onboard(conn net.Conn) {
 	switch clientType {
 	case session.MsgSend:
 		log.Println("sending secret")
-		//secret = "abc123"
-		secret = generateSecret(secretLength)
+		secret = r.secrets.Secret()
 		log.Println("generated secret is", secret)
 		err = s.SendSecret(secret)
 		if err != nil {
@@ -108,6 +119,7 @@ func (r *relay) onboard(conn net.Conn) {
 
 // Joins a new client, either starting a new session for a sender or
 // connecting a receiver to an existing session.
+// If a receiver has an unknown secret, then their connection is closed.
 func (r *relay) join(c client) {
 	r.action <- func() {
 		log.Println("join for client:", c)
@@ -115,7 +127,9 @@ func (r *relay) join(c client) {
 		case session.MsgSend:
 			log.Println("onboarding sender for", c.secret)
 			if _, ok := r.transfers[c.secret]; ok {
+				// should be very unlikely as the relay server generates secrets!
 				log.Println("skipping duplicate send client:", c.secret)
+				c.conn.Close()
 				return
 			}
 			r.transfers[c.secret] = tx{secret: c.secret, send: c.conn}
@@ -123,6 +137,7 @@ func (r *relay) join(c client) {
 			log.Println("onboarding receiver for", c.secret)
 			if _, ok := r.transfers[c.secret]; !ok {
 				log.Println("skipping recv client because no active tx:", c.secret)
+				c.conn.Close()
 				return
 			}
 			t := r.transfers[c.secret]
