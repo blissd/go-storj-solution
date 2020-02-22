@@ -27,6 +27,7 @@ func main() {
 	if err != nil {
 		log.Fatalln("failed creating session:", err)
 	}
+	defer s.Close()
 
 	if err = s.SendSendReady(); err != nil {
 		log.Fatalln("failed starting send session:", err)
