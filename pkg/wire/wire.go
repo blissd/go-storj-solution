@@ -18,6 +18,7 @@ import (
 
 // Encodes data types to an underlying io.Writer
 type FrameEncoder interface {
+	EncodeBytes(bs []byte) error
 	EncodeByte(b byte) error
 	EncodeString(s string) error
 	EncodeInt64(i int64) error
@@ -25,6 +26,7 @@ type FrameEncoder interface {
 
 // Decodes data types from an underlying io.Reader
 type FrameDecoder interface {
+	DecodeBytes() ([]byte, error)
 	DecodeByte() (byte, error)
 	DecodeString() (string, error)
 	DecodeInt64() (int64, error)
@@ -50,25 +52,26 @@ func NewDecoder(r io.Reader) FrameDecoder {
 	}
 }
 
-func (enc *frameEncoder) EncodeByte(b byte) error {
-	_, err := enc.Write([]byte{2, b})
-	if err != nil {
-		return fmt.Errorf("wire.WriteByte: %w", err)
+func (enc *frameEncoder) EncodeBytes(bs []byte) error {
+	length := len(bs)
+	if length > 254 {
+		return fmt.Errorf("wire.EncodeBytes: too long %v", length)
+	}
+	if _, err := enc.Write([]byte{byte(length + 1)}); err != nil {
+		return fmt.Errorf("wire.EncodeBytes: write length: %w", err)
+	}
+	if _, err := enc.Write(bs); err != nil {
+		return fmt.Errorf("wire.EncodeBytes: write payload: %w", err)
 	}
 	return nil
 }
 
+func (enc *frameEncoder) EncodeByte(b byte) error {
+	return enc.EncodeBytes([]byte{2, b})
+}
+
 func (enc *frameEncoder) EncodeString(s string) error {
-	if len(s) > 254 {
-		return fmt.Errorf("wire.WriteString: too long %v", len(s))
-	}
-	if _, err := enc.Write([]byte{byte(len(s) + 1)}); err != nil {
-		return fmt.Errorf("wire.WriteString: write length: %w", err)
-	}
-	if _, err := enc.Write([]byte(s)); err != nil {
-		return fmt.Errorf("wire.WriteString: write payload: %w", err)
-	}
-	return nil
+	return enc.EncodeBytes([]byte(s))
 }
 
 func (enc *frameEncoder) EncodeInt64(i int64) error {
@@ -81,33 +84,40 @@ func (enc *frameEncoder) EncodeInt64(i int64) error {
 	return nil
 }
 
-func (dec *frameDecoder) DecodeByte() (byte, error) {
-	bs := make([]byte, 2)
-	_, err := dec.Read(bs)
-	if err != nil {
-		return 0, fmt.Errorf("wire.DecodeByte: %w", err)
-	}
-	if bs[0] != 2 {
-		return 0, fmt.Errorf("wire.DecodeString: bad length: %v", bs[0])
-	}
-	return bs[1], nil
-}
-
-func (dec *frameDecoder) DecodeString() (string, error) {
+func (dec *frameDecoder) DecodeBytes() ([]byte, error) {
 	bs := make([]byte, 1)
 	if _, err := dec.Read(bs); err != nil {
-		return "", fmt.Errorf("wire.DecodeString length: %w", err)
+		return nil, fmt.Errorf("wire.DecodeBytes length: %w", err)
 	}
 	length := bs[0]
 	if length < 1 {
-		return "", fmt.Errorf("wire.DecodeString: bad length: %v", bs[0])
+		return nil, fmt.Errorf("wire.DecodeBytes: bad length: %v", bs[0])
 	}
 
 	bs = make([]byte, length-1)
 
 	_, err := dec.Read(bs)
 	if err != nil {
-		return "", fmt.Errorf("wire.DecodeString: read payload: %w", err)
+		return nil, fmt.Errorf("wire.DecodeBytes: read payload: %w", err)
+	}
+	return bs, nil
+}
+
+func (dec *frameDecoder) DecodeByte() (byte, error) {
+	bs, err := dec.DecodeBytes()
+	if err != nil {
+		return 0, fmt.Errorf("wire.DecodeByte: %w", err)
+	}
+	if bs[0] != 2 {
+		return 0, fmt.Errorf("wire.DecodeByte: bad length: %v", bs[0])
+	}
+	return bs[1], nil
+}
+
+func (dec *frameDecoder) DecodeString() (string, error) {
+	bs, err := dec.DecodeBytes()
+	if err != nil {
+		return "", fmt.Errorf("wire.DecodeString: %w", err)
 	}
 	return string(bs), nil
 }
@@ -116,7 +126,7 @@ func (dec *frameDecoder) DecodeInt64() (int64, error) {
 	bs := make([]byte, 1)
 	_, err := dec.Read(bs)
 	if err != nil {
-		return 0, fmt.Errorf("wire.DecodeString: %w", err)
+		return 0, fmt.Errorf("wire.DecodeInt64: %w", err)
 	}
 
 	var i int64

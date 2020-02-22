@@ -10,12 +10,11 @@ import (
 func TestEncodeString(t *testing.T) {
 	tests := []struct {
 		name string
-		id   byte
 		s    string
 	}{
-		{"encode one byte", 100, "a"},
-		{"encode two bytes", 101, "ab"},
-		{"encode a few words", 101, "some short string"},
+		{"encode one byte", "a"},
+		{"encode two bytes", "ab"},
+		{"encode a few words", "some short string"},
 	}
 
 	for _, tt := range tests {
@@ -30,16 +29,12 @@ func TestEncodeString(t *testing.T) {
 			bs := buf.Bytes()
 
 			if len(bs) != len(tt.s)+1 {
-				t.Fatalf("frame length incorrect. Expected %v, got %v", len(tt.s)+2, len(bs))
+				t.Fatalf("frame length incorrect. Expected %v, got %v", len(tt.s)+1, len(bs))
 			}
 
 			if bs[0] != uint8(len(tt.s)+1) {
-				t.Fatalf("Expected encoded frame length to be %v, got %v", len(tt.s), bs[0])
+				t.Fatalf("Expected encoded frame length to be %v, got %v", len(tt.s)+1, bs[0])
 			}
-
-			//if bs[1] != tt.id {
-			//	t.Fatalf("Expected message type of %v, got %v", bs[0], tt.id)
-			//}
 
 			s := string(bs[1:])
 			if s != tt.s {
@@ -55,11 +50,10 @@ func TestDecodeString(t *testing.T) {
 		name   string
 		bs     []byte
 		length byte
-		id     byte
 		s      string
 	}{
-		{"decode 'a'", []byte{2, 1, 'a'}, 2, 1, "a"},
-		{"decode 'abc'", []byte{4, 9, 'a', 'b', 'c'}, 4, 9, "abc"},
+		{"decode 'a'", []byte{2, 'a'}, 2, "a"},
+		{"decode 'abc'", []byte{4, 'a', 'b', 'c'}, 4, "abc"},
 	}
 
 	for _, tt := range tests {
@@ -75,10 +69,6 @@ func TestDecodeString(t *testing.T) {
 				t.Fatalf("failed decode: %v", err)
 			}
 
-			//if id != tt.id {
-			//	t.Fatalf("expected type to be %v, got %v", tt.id, id)
-			//}
-
 			if s != tt.s {
 				t.Fatalf("Expected string to be '%v' %v bytes, got '%v' %v bytes", tt.s, len(tt.s), s, len(s))
 			}
@@ -90,13 +80,12 @@ func TestEncodeInt64(t *testing.T) {
 
 	tests := []struct {
 		name string
-		id   byte
 		i    int64
 	}{
-		{"1", 34, 1},
-		{"12", 2, 12},
-		{"123", 127, 123},
-		{"1234", 2, 1234},
+		{"1", 1},
+		{"12", 12},
+		{"123", 123},
+		{"1234", 1234},
 	}
 
 	for _, tt := range tests {
@@ -117,10 +106,6 @@ func TestEncodeInt64(t *testing.T) {
 				t.Fatalf("Expected frame length of %v, got %v", 1+byte(unsafe.Sizeof(tt.i)), bs[0])
 			}
 
-			//if bs[1] != tt.id {
-			//	t.Fatalf("Expected message type of %v, got %v", bs[0], tt.id)
-			//}
-
 			var i int64
 			if err := binary.Read(bytes.NewBuffer(bs[1:]), binary.BigEndian, &i); err != nil {
 				t.Fatalf("binary read: %v", err)
@@ -135,13 +120,12 @@ func TestEncodeInt64(t *testing.T) {
 func TestDecodeInt64(t *testing.T) {
 	tests := []struct {
 		name string
-		id   byte
 		i    int64
 	}{
-		{"1", 34, 1},
-		{"12", 2, 12},
-		{"123", 127, 123},
-		{"1234", 2, 1234},
+		{"1", 1},
+		{"12", 12},
+		{"123", 123},
+		{"1234", 1234},
 	}
 
 	for _, tt := range tests {
@@ -156,10 +140,6 @@ func TestDecodeInt64(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed decode: %v", err)
 			}
-
-			//if id != tt.id {
-			//	t.Fatalf("expected type of %v, got %v", tt.id, id)
-			//}
 
 			if i != tt.i {
 				t.Fatalf("Expected i to be %v, got %v", tt.i, i)
