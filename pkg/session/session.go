@@ -7,14 +7,6 @@ import (
 	"net"
 )
 
-type state byte
-
-const (
-	initial state = 1
-	started state = 2
-	sending state = 3
-)
-
 const (
 
 	// Encoded sender type
@@ -22,19 +14,12 @@ const (
 
 	// Encoded receiver type
 	MsgRecv
-
-	// Encoded secret code
-	msgSecretCode
-
-	// Encoded file name.
-	msgFileName
-
-	// Encoded file length
-	msgFileLength
 )
 
 type Session struct {
 	conn net.Conn
+	enc  wire.FrameEncoder
+	dec  wire.FrameDecoder
 }
 
 func (s *Session) Close() error {
@@ -46,107 +31,63 @@ func New(addr string) (*Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new session: %w", err)
 	}
-	return &Session{conn: conn}, nil
+	return &Session{
+		conn: conn,
+		enc:  wire.NewEncoder(conn),
+		dec:  wire.NewDecoder(conn),
+	}, nil
 }
 
 func Attach(conn net.Conn) *Session {
 	return &Session{conn: conn}
 }
 
-// get the first message sent to a new connection
-func (s *Session) FirstByte() (byte, error) {
-	bs, err := wire.NextFrame(s.conn)
-	if err != nil {
-		return 0, fmt.Errorf("first byte: %w", err)
-	}
-	if bs[0] != 1 {
-		return 0, fmt.Errorf("must have length of 1, but is %v", bs[0])
-	}
-
-	return bs[1], nil
-}
-
 func (s *Session) SendFileName(name string) error {
-	return s.sendString(msgFileName, name)
+	return s.enc.EncodeString(name)
 }
 
 func (s *Session) RecvFileName() (string, error) {
-	v, err := s.recvString(msgFileName)
+	v, err := s.recvString()
 	return v, err
 }
 
 func (s *Session) SendSecret(secret string) error {
-	return s.sendString(msgSecretCode, secret)
+	return s.sendString(secret)
 }
 
 func (s *Session) RecvSecret() (string, error) {
-	v, err := s.recvString(msgSecretCode)
-	return v, err
+	return s.dec.DecodeString()
 }
 
 func (s *Session) SendFileLength(length int64) error {
-	bs, err := wire.EncodeInt64(msgFileLength, length)
-	if err != nil {
-		return fmt.Errorf("send file length: %w", err)
-	}
-
-	_, err = s.conn.Write(bs)
-	if err != nil {
-		return fmt.Errorf("send file length: %w", err)
-	}
-	return nil
+	return s.enc.EncodeInt64(length)
 }
 
 func (s *Session) RecvFileLength() (int64, error) {
-	f, err := wire.NextFrame(s.conn)
-	if err != nil {
-		return 0, fmt.Errorf("recv file length: %w", err)
-	}
-
-	ft, v, err := wire.DecodeInt64(f)
-	if err != nil {
-		return 0, fmt.Errorf("recv file length: %w", err)
-	} else if ft != msgFileLength {
-		return 0, fmt.Errorf("expected %v, got %v", msgFileLength, ft)
-	}
-	return v, err
+	return s.dec.DecodeInt64()
 }
 
 // Informs server that client is a receiver.
 // Informs sender that receiver is connected and ready.
 func (s *Session) SendSendReady() error {
-	bs, err := wire.EncodeByte(MsgSend)
-	if err != nil {
-		return fmt.Errorf("send ready: %w", err)
-	}
-	_, err = s.conn.Write(bs)
-	return err
+	return s.enc.EncodeByte(MsgSend)
 }
 
 // Informs server that client is a receiver.
 // Informs sender that receiver is connected and ready.
 func (s *Session) SendRecvReady() error {
-	bs, err := wire.EncodeByte(MsgRecv)
-	if err != nil {
-		return fmt.Errorf("recv ready: %w", err)
-	}
-	_, err = s.conn.Write(bs)
-	return err
+	return s.enc.EncodeByte(MsgRecv)
 }
 
 // Informs server that client is a receiver.
 // Informs sender that receiver is connected and ready.
 func (s *Session) WaitForRecv() error {
-	bs, err := wire.NextFrame(s.conn)
+	b, err := s.dec.DecodeByte()
 	if err != nil {
-		return fmt.Errorf("wait for recv: %w", err)
-	}
-	b, err := wire.DecodeByte(bs)
-	if err != nil {
-		return err
+		return fmt.Errorf("session.WaitForRecv: %w", err)
 	}
 	if b != MsgRecv {
-		return fmt.Errorf("expected %v, got %v", MsgRecv, b)
+		return fmt.Errorf("session.WaitForRecv: wrong byte: %v", b)
 	}
 	return nil
 }
@@ -159,33 +100,10 @@ func (s *Session) Recv(w io.Writer) (int64, error) {
 	return io.Copy(w, s.conn)
 }
 
-func (s *Session) sendString(id byte, v string) error {
-	bs, err := wire.EncodeString(id, v)
-	if err != nil {
-		return fmt.Errorf("send string: %w", err)
-	}
-
-	_, err = s.conn.Write(bs)
-	if err != nil {
-		return fmt.Errorf("send string: %w", err)
-	}
-
-	return nil
+func (s *Session) sendString(v string) error {
+	return s.enc.EncodeString(v)
 }
 
-func (s *Session) recvString(id byte) (string, error) {
-	f, err := wire.NextFrame(s.conn)
-	if err != nil {
-		return "", fmt.Errorf("recv string: %w", err)
-	}
-
-	ft, v, err := wire.DecodeString(f)
-
-	if err != nil {
-		return "", fmt.Errorf("recv string: %w", err)
-	} else if ft != id {
-		return "", fmt.Errorf("expected %v, got %v", id, ft)
-	}
-
-	return v, nil
+func (s *Session) recvString() (string, error) {
+	return s.dec.DecodeString()
 }

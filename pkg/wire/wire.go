@@ -10,104 +10,122 @@
 package wire
 
 import (
-	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"unsafe"
 )
 
-func NextFrame(r io.Reader) ([]byte, error) {
-	length := make([]byte, 1)
-	_, err := r.Read(length)
+// Encodes data types to an underlying io.Writer
+type FrameEncoder interface {
+	EncodeByte(b byte) error
+	EncodeString(s string) error
+	EncodeInt64(i int64) error
+}
+
+// Decodes data types from an underlying io.Reader
+type FrameDecoder interface {
+	DecodeByte() (byte, error)
+	DecodeString() (string, error)
+	DecodeInt64() (int64, error)
+}
+
+type frameEncoder struct {
+	io.Writer
+}
+
+type frameDecoder struct {
+	io.Reader
+}
+
+func NewEncoder(w io.Writer) FrameEncoder {
+	return &frameEncoder{
+		Writer: w,
+	}
+}
+
+func NewDecoder(r io.Reader) FrameDecoder {
+	return &frameDecoder{
+		Reader: r,
+	}
+}
+
+func (enc *frameEncoder) EncodeByte(b byte) error {
+	_, err := enc.Write([]byte{2, b})
 	if err != nil {
-		return nil, fmt.Errorf("next frame: %w", err)
+		return fmt.Errorf("wire.WriteByte: %w", err)
 	}
-
-	frame := make([]byte, length[0]+1)
-	frame[0] = length[0]
-	_, err = r.Read(frame[1:])
-	return frame, err
+	return nil
 }
 
-// Format a string, such as a file name or a secret code.
-// String has max length of 254 bytes.
-// Structure is:
-// byte 0 -> frame length
-// byte 1 -> field name
-// byte 2+ -> string
-func EncodeString(id byte, s string) ([]byte, error) {
-	length := uint8(len(s) + 1)
-	if length > 255 {
-		return nil, errors.New("too long")
+func (enc *frameEncoder) EncodeString(s string) error {
+	if len(s) > 254 {
+		return fmt.Errorf("wire.WriteString: too long %v", len(s))
 	}
-
-	var buf bytes.Buffer
-	buf.WriteByte(length)
-	buf.WriteByte(id)
-	buf.WriteString(s)
-	return buf.Bytes(), nil
+	if _, err := enc.Write([]byte{byte(len(s) + 1)}); err != nil {
+		return fmt.Errorf("wire.WriteString: write length: %w", err)
+	}
+	if _, err := enc.Write([]byte(s)); err != nil {
+		return fmt.Errorf("wire.WriteString: write payload: %w", err)
+	}
+	return nil
 }
 
-func DecodeString(bs []byte) (byte, string, error) {
-	if len(bs) <= 2 {
-		return 0, "", errors.New("bad frame")
+func (enc *frameEncoder) EncodeInt64(i int64) error {
+	if _, err := enc.Write([]byte{byte(unsafe.Sizeof(i) + 1)}); err != nil {
+		return fmt.Errorf("wire.EncodeInt64: write length: %w", err)
 	}
-
-	length := int(bs[0])
-	if len(bs) != 1+length {
-		return 0, "", fmt.Errorf("expect %v bytes, got %v", 2+length, len(bs))
+	if err := binary.Write(enc, binary.BigEndian, i); err != nil {
+		return fmt.Errorf("wire.EncodeInt64: %w", err)
 	}
-
-	return bs[1], string(bs[2:]), nil
+	return nil
 }
 
-// Encodes an int64.
-// Format is:
-// byte 0 -> frame size
-// byte 1 -> field type. Always 5.
-// byte 2-5 -> big endian encoded length
-func EncodeInt64(id byte, i int64) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteByte(1 + byte(unsafe.Sizeof(i)))
-	buf.WriteByte(id)
-	if err := binary.Write(&buf, binary.BigEndian, i); err != nil {
-		return nil, fmt.Errorf("EncodeInt64: %w", err)
+func (dec *frameDecoder) DecodeByte() (byte, error) {
+	bs := make([]byte, 2)
+	_, err := dec.Read(bs)
+	if err != nil {
+		return 0, fmt.Errorf("wire.DecodeByte: %w", err)
 	}
-	return buf.Bytes(), nil
+	if bs[0] != 2 {
+		return 0, fmt.Errorf("wire.DecodeString: bad length: %v", bs[0])
+	}
+	return bs[1], nil
 }
 
-func DecodeInt64(bs []byte) (byte, int64, error) {
-	if len(bs) < 2 {
-		return 0, 0, errors.New("bad frame")
+func (dec *frameDecoder) DecodeString() (string, error) {
+	bs := make([]byte, 1)
+	if _, err := dec.Read(bs); err != nil {
+		return "", fmt.Errorf("wire.DecodeString length: %w", err)
+	}
+	length := bs[0]
+	if length < 1 {
+		return "", fmt.Errorf("wire.DecodeString: bad length: %v", bs[0])
+	}
+
+	bs = make([]byte, length-1)
+
+	_, err := dec.Read(bs)
+	if err != nil {
+		return "", fmt.Errorf("wire.DecodeString: read payload: %w", err)
+	}
+	return string(bs), nil
+}
+
+func (dec *frameDecoder) DecodeInt64() (int64, error) {
+	bs := make([]byte, 1)
+	_, err := dec.Read(bs)
+	if err != nil {
+		return 0, fmt.Errorf("wire.DecodeString: %w", err)
 	}
 
 	var i int64
 	if bs[0] != 1+byte(unsafe.Sizeof(i)) {
-		return 0, 0, fmt.Errorf("frame too short: %v", bs[0])
+		return 0, fmt.Errorf("wire.DecodeInt64: bad length: %v", bs[0])
 	}
 
-	buf := bytes.NewBuffer(bs[2:])
-	if err := binary.Read(buf, binary.BigEndian, &i); err != nil {
-		return 0, 0, fmt.Errorf("DecodeInt64: %w", err)
+	if err := binary.Read(dec, binary.BigEndian, &i); err != nil {
+		return 0, fmt.Errorf("wire.DecodeInt64: %w", err)
 	}
-	return bs[1], i, nil
-}
-
-// Encodes a single byte. Intended to be used to send flags between processes.
-func EncodeByte(b byte) ([]byte, error) {
-	return []byte{1, b}, nil
-}
-
-func DecodeByte(bs []byte) (byte, error) {
-	if len(bs) != 2 {
-		return 0, fmt.Errorf("must have length of 3, but is %v bytes", len(bs))
-	}
-
-	if bs[0] != 1 {
-		return 0, fmt.Errorf("must have encoded length of 1, but is %v bytes", bs[0])
-	}
-
-	return bs[1], nil
+	return i, nil
 }

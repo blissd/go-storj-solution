@@ -29,12 +29,11 @@ type tx struct {
 // Copies bytes from sender to receiver
 func (t *tx) Run(r *Relay) {
 	defer r.close(t.secret)
-	s := session.Attach(t.send)
 
 	// Send "receiver is ready" message to sender so that the
 	// sender can start sending bytes.
-	wire.EncodeByte(session.MsgRecv)
-	if err := s.SendRecvReady(); err != nil {
+	enc := wire.NewEncoder(t.send)
+	if err := enc.EncodeByte(session.MsgRecv); err != nil {
 		log.Println("send recv ready failed:", err)
 		return
 	}
@@ -81,9 +80,9 @@ func (r *Relay) Run() {
 // A valid client then joins a transfer, either creating it for a sender
 // or being associated with an existing transform for a receiver.
 func (r *Relay) onboard(conn net.Conn) {
-	s := session.Attach(conn)
-	clientType, err := s.FirstByte()
 
+	dec := wire.NewDecoder(conn)
+	clientType, err := dec.DecodeByte()
 	if err != nil {
 		log.Println("failed reading first byte:", err)
 		conn.Close()
@@ -99,7 +98,7 @@ func (r *Relay) onboard(conn net.Conn) {
 		log.Println("sending secret")
 		secret = r.secrets.Secret()
 		log.Println("generated secret is", secret)
-		err = s.SendSecret(secret)
+		err = wire.NewEncoder(conn).EncodeString(secret)
 		if err != nil {
 			log.Println("send secret in onboard:", err)
 			conn.Close()
@@ -107,7 +106,7 @@ func (r *Relay) onboard(conn net.Conn) {
 		}
 	case session.MsgRecv:
 		log.Println("receiving secret")
-		secret, err = s.RecvSecret()
+		secret, err = dec.DecodeString()
 		if err != nil {
 			log.Println("recv secret in onboard:", err)
 			conn.Close()
