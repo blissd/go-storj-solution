@@ -8,49 +8,72 @@ import (
 )
 
 func TestEncodeString(t *testing.T) {
-	original := "some text"
-	originalId := byte(65)
-
-	bs, err := EncodeString(originalId, original)
-	if err != nil {
-		t.Fatalf("failed encode: %v", err)
+	tests := []struct {
+		name string
+		id   byte
+		s    string
+	}{
+		{"encode one byte", 100, "a"},
+		{"encode two bytes", 101, "ab"},
+		{"encode a few words", 101, "some short string"},
 	}
 
-	if len(bs) != len(original)+2 {
-		t.Fatalf("frame length incorrect. Expected %v, got %v", len(original)+1, len(bs))
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bs, err := EncodeString(tt.id, tt.s)
+			if err != nil {
+				t.Fatalf("failed encode: %v", err)
+			}
 
-	if bs[0] != uint8(len(original)+1) {
-		t.Fatalf("Expected encoded frame length to be %v, got %v", len(original), bs[0])
-	}
+			if len(bs) != len(tt.s)+2 {
+				t.Fatalf("frame length incorrect. Expected %v, got %v", len(tt.s)+2, len(bs))
+			}
 
-	if bs[1] != originalId {
-		t.Fatalf("Expected message type of %v, got %v", bs[0], originalId)
-	}
+			if bs[0] != uint8(len(tt.s)+1) {
+				t.Fatalf("Expected encoded frame length to be %v, got %v", len(tt.s), bs[0])
+			}
 
-	s := string(bs[2:])
-	if s != original {
-		t.Fatalf("Expected string to be %v, got %v", original, s)
+			if bs[1] != tt.id {
+				t.Fatalf("Expected message type of %v, got %v", bs[0], tt.id)
+			}
+
+			s := string(bs[2:])
+			if s != tt.s {
+				t.Fatalf("Expected string to be %v, got %v", tt.s, s)
+			}
+		})
 	}
 }
 
 func TestDecodeString(t *testing.T) {
-	original := "some_name.txt"
-	originalId := byte(3)
 
-	bs, _ := EncodeString(originalId, original)
-	id, s, err := DecodeString(bs)
-
-	if err != nil {
-		t.Fatalf("failed decode: %v", err)
+	tests := []struct {
+		name   string
+		bs     []byte
+		length byte
+		id     byte
+		s      string
+	}{
+		{"decode 'a'", []byte{2, 1, 'a'}, 2, 1, "a"},
+		{"decode 'abc'", []byte{4, 9, 'a', 'b', 'c'}, 4, 9, "abc"},
 	}
 
-	if id != originalId {
-		t.Fatalf("expected type to be %v, got %v", originalId, id)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id, s, err := DecodeString(tt.bs)
 
-	if s != original {
-		t.Fatalf("Expected string to be %v, got %v", original, s)
+			if err != nil {
+				t.Fatalf("failed decode: %v", err)
+			}
+
+			if id != tt.id {
+				t.Fatalf("expected type to be %v, got %v", tt.id, id)
+			}
+
+			if s != tt.s {
+				t.Fatalf("Expected string to be %v, got %v", tt.s, s)
+			}
+		})
 	}
 }
 
