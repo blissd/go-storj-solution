@@ -35,7 +35,7 @@ type relay struct {
 	action chan func()
 }
 
-// Process actions
+// Process actions to update relay state, such as clients joining and leaving a transfer
 func (r *relay) run() {
 	for a := range r.action {
 		a()
@@ -81,6 +81,9 @@ func (r *relay) join(c client) {
 			}
 			t := r.transfers[c.secret]
 			t.recv = c.conn
+
+			// Not a map of pointers, so setting t.recv doesn't update r.transfers[c.secret].recv!
+			// Should I use a map of pointers to tx?
 			r.transfers[c.secret] = t
 
 			// sender and receiver are connect so now start relaying traffic
@@ -128,6 +131,7 @@ func (t *tx) Run(r *relay) {
 	s := session.Attach(t.send)
 	if err := s.SendRecvReady(); err != nil {
 		log.Println("send recv ready failed:", err)
+		return
 	}
 
 	// Now just pipe from sender to receiver
@@ -158,7 +162,7 @@ func onboard(conn net.Conn, r *relay) {
 		log.Println("generated secret is", secret)
 		err = s.SendSecret(secret)
 		if err != nil {
-			log.Println("onboarding:", err)
+			log.Println("send secret in onboard:", err)
 			conn.Close()
 			return
 		}
@@ -166,12 +170,12 @@ func onboard(conn net.Conn, r *relay) {
 		log.Println("receiving secret")
 		secret, err = s.RecvSecret()
 		if err != nil {
-			log.Println("onboarding:", err)
+			log.Println("recv secret in onboard:", err)
 			conn.Close()
 			return
 		}
 	default:
-		log.Println("must be send/recv:", clientType)
+		log.Println("invalid client type in onboard:", clientType)
 		conn.Close()
 		return
 	}
