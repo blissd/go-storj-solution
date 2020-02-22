@@ -21,12 +21,8 @@ func main() {
 	}
 	defer l.Close()
 
-	r := &relay{
-		transfers: make(map[string]tx),
-		action:    make(chan func()),
-		secrets:   NewRandomSecrets(6, time.Now().UnixNano()),
-	}
-	go r.run()
+	r := NewRelay(NewRandomSecrets(6, time.Now().UnixNano()))
+	go r.Run()
 
 	for {
 		conn, err := l.Accept()
