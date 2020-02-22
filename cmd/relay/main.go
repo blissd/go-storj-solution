@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"math/rand"
 	"net"
 	"os"
 	"time"
@@ -22,12 +21,10 @@ func main() {
 	}
 	defer l.Close()
 
-	rand.Seed(time.Now().UnixNano())
-
 	r := &relay{
 		transfers: make(map[string]tx),
 		action:    make(chan func()),
-		secrets:   NewRandomSecrets(6),
+		secrets:   NewRandomSecrets(6, time.Now().UnixNano()),
 	}
 	go r.run()
 
