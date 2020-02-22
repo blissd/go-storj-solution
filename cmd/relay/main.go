@@ -8,15 +8,84 @@ import (
 	"os"
 )
 
-type transfer struct {
-	send net.Conn
-	recv net.Conn
-}
-
+// a sender or receiver connecting to the relay
 type client struct {
 	conn   net.Conn
 	side   byte
 	secret string
+}
+
+// an ongoing transfer between sender and receiver
+type tx struct {
+	secret string
+	send   net.Conn
+	recv   net.Conn
+}
+
+// Manages transfers
+type relay struct {
+	// ongoing transfers
+	transfers map[string]tx
+
+	// Actions to add or remove transfers.
+	// `relay` is effectively an actor.
+	action chan func()
+}
+
+// Process actions
+func (r *relay) run() {
+	for a := range r.action {
+		a()
+	}
+}
+
+// cleans up after ending a transfer for any reason
+func (r *relay) close(secret string) {
+	r.action <- func() {
+		log.Println("closing:", secret)
+		defer delete(r.transfers, secret)
+		if t, ok := r.transfers[secret]; ok {
+			if t.send != nil {
+				log.Println("closing send:", secret)
+				t.send.Close()
+			}
+			if t.recv != nil {
+				log.Println("closing recv:", secret)
+				t.recv.Close()
+			}
+		}
+	}
+}
+
+// Joins a new client, either starting a new session for a sender or
+// connecting a receiver to an existing session.
+func (r *relay) join(c client) {
+	r.action <- func() {
+		log.Println("join for client:", c)
+		switch c.side {
+		case session.MsgSend:
+			log.Println("onboarding sender for", c.secret)
+			if _, ok := r.transfers[c.secret]; ok {
+				log.Println("skipping duplicate send client:", c.secret)
+				return
+			}
+			r.transfers[c.secret] = tx{secret: c.secret, send: c.conn}
+		case session.MsgRecv:
+			log.Println("onboarding receiver for", c.secret)
+			if _, ok := r.transfers[c.secret]; !ok {
+				log.Println("skipping recv client because no active tx:", c.secret)
+				return
+			}
+			t := r.transfers[c.secret]
+			t.recv = c.conn
+
+			// sender and receiver are connect so now start relaying traffic
+			log.Println("relay traffic")
+			go t.Run(r)
+		default:
+			log.Println("skipping client because side is invalid:", c.side)
+		}
+	}
 }
 
 func main() {
@@ -33,8 +102,11 @@ func main() {
 	}
 	defer l.Close()
 
-	onboarding := make(chan client)
-	go onboard(onboarding)
+	r := &relay{
+		transfers: make(map[string]tx),
+		action:    make(chan func()),
+	}
+	go r.run()
 
 	for {
 		conn, err := l.Accept()
@@ -42,51 +114,22 @@ func main() {
 			log.Fatalln("failed to accept connection:", err)
 		}
 
-		go handle(conn, onboarding)
+		go onboard(conn, r)
 	}
 }
 
-func onboard(clients chan client) {
-	transfers := make(map[string]transfer)
-	log.Println("go onboard")
-	for c := range clients {
-		log.Println("onboard for client:", c)
-		switch c.side {
-		case session.MsgSend:
-			log.Println("onboarding sender for", c.secret)
-			if _, ok := transfers[c.secret]; ok {
-				log.Println("skipping duplicate send client:", c.secret)
-				continue
-			}
-			transfers[c.secret] = transfer{send: c.conn}
-		case session.MsgRecv:
-			log.Println("onboarding receiver for", c.secret)
-			if _, ok := transfers[c.secret]; !ok {
-				log.Println("skipping recv client because no active transfer:", c.secret)
-				continue
-			}
-			t := transfers[c.secret]
-			t.recv = c.conn
-
-			// sender and receiver are connect so now start relaying traffic
-			log.Println("relay traffic")
-			go t.Run()
-		default:
-			log.Println("skipping client because side is invalid:", c.side)
-		}
-	}
-}
-
-func (t *transfer) Run() {
+func (t *tx) Run(r *relay) {
 	// first send byte to sender to indicate receiver is ready
 	s := session.Attach(t.send)
 	s.SendRecvReady()
 
 	// Now just pipe from sender to receiver
 	io.Copy(t.recv, t.send)
+
+	r.close(t.secret)
 }
 
-func handle(conn net.Conn, onboarding chan client) {
+func onboard(conn net.Conn, r *relay) {
 	s := session.Attach(conn)
 	clientType, err := s.FirstByte()
 
@@ -130,5 +173,5 @@ func handle(conn net.Conn, onboarding chan client) {
 		side:   clientType,
 		secret: secret,
 	}
-	onboarding <- c
+	r.join(c)
 }
