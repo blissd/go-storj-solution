@@ -8,14 +8,13 @@ The project uses the package structure recommended by [Go Best Practices 2016](h
 Command line tools are in their own directories under `cmd/`, and libraries are under `pkg/`.
 
 ## Protocol
-Each client must talk to two entities. A client first talks to a relay server to establish a transfer session, 
+Each client must talk to two entities--the relay server and a peer client. A client first talks to a relay server to establish a transfer session, 
 and then talks to its peer client to transfer the files.
 
-Messages are represented as variable size data frames prefixed by a single byte indicating the frame length.
-As such the payload to a message frame can be at most 254 bytes, which is long enough to accommodate the session
+Messages are represented as variable size data frames prefixed by a single byte indicating the frame length,
+which makes messages self-describing and easy to read.
+The payload to a message can be at most 254 bytes, which is long enough to accommodate the session
 secret and the file name.
-
-Prefixing messages with their size makes them self-describing and easy to read.
 
 The initial message from a client to the relay server specifies the client type (sender or receiver), but subsequent
 messages don't specify any type. Instead, the type is inferred from the message ordering.
@@ -29,7 +28,6 @@ doesn't inform clients of any error conditions.
 The `wire` package defines functions for encoding and decoding data types into frames. The package defines
 a `FrameEncoder` and a `FrameDecoder` which are intended to wrap standard Golang `io.Reader`s and `io.Writer`s.
 The use of encoders for framing is inspired by the JSON and XML encoders already present in Golang.
-
 
 ## Clients
 The sender and receiver clients use the `session` package to communicate with the relay server. The `session` package
