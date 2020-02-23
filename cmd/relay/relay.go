@@ -51,7 +51,7 @@ type Relay struct {
 	transfers map[string]*tx
 
 	// Actions to add or remove transfers.
-	// `relay` is effectively an actor.
+	// `Relay` is effectively an actor.
 	action chan func()
 }
 

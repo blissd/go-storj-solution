@@ -23,6 +23,7 @@ func main() {
 	}
 	defer l.Close()
 
+	//secrets := NewFixedSecret("abc123")
 	secrets := NewRandomSecrets(6, time.Now().UnixNano())
 	r := NewRelay()
 	go r.Run()

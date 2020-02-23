@@ -9,19 +9,20 @@ type Secrets interface {
 	Secret() string
 }
 type randomSecrets struct {
-	// rand.Rand isn't thread safe, so guard it
+	// rand.Rand isn't concurrent-safe, so guard it
 	sync.Mutex
 
 	// size of secrets to generate
 	length int
 
-	// bytes that can occur in generates secrets
+	// bytes that can occur in generated secrets
 	letters []byte
 
 	// random source
 	rand *rand.Rand
 }
 
+// Generates a new random secret.
 func (s *randomSecrets) Secret() string {
 	defer s.Unlock()
 	s.Lock()
