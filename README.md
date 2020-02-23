@@ -1,6 +1,11 @@
 # golang-storj-solution
 
-Solution for the storj file send interview problem defined here: https://gist.githubusercontent.com/jtolds/0cde4aa3e07b20d6a42686ad3bc9cb53
+Solution for the storj file send interview problem defined [here](https://gist.githubusercontent.com/jtolds/0cde4aa3e07b20d6a42686ad3bc9cb53).
+
+## Package Structure
+
+The project uses the package structure recommended by [Go Best Practices 2016](https://peter.bourgon.org/go-best-practices-2016/#repository-structure).
+Command line tools are in their own directories under `cmd/`, and libraries are under `pkg/`.
 
 ## Protocol
 Each client must talk to two entities. A client first talks to a relay server to establish a transfer session, 
@@ -35,6 +40,9 @@ The relay server defines a `Relay` struct type that is used to handle session es
 functions to be executes against the `Relay` state in a synchronised way. Because the state is only processed by the
 go routine that consumes from the `actions` channel it isn't necessary to a mutex for guarding updates to
 the session state.
+
+This actor pattern was inspired by the talk "Ways To Do Things"
+ ([slides](https://speakerdeck.com/peterbourgon/ways-to-do-things) and [video](https://www.youtube.com/watch?v=LHe1Cb_Ud_M)).
 
 
 
