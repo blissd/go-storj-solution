@@ -24,7 +24,7 @@ receiver. The file size is sent so the receiver can determine if the full file h
 Without the file size a partial send by the sender would not be detected by the receiver because the relay server 
 doesn't inform clients of any error conditions.
 
-### The `wire` Package
+## The `wire` Package
 The `wire` package defines functions for encoding and decoding data types into frames. The package defines
 a `FrameEncoder` and a `FrameDecoder` which are intended to wrap standard Golang `io.Reader`s and `io.Writer`s.
 The use of encoders for framing is inspired by the JSON and XML encoders already present in Golang.
