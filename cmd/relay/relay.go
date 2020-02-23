@@ -50,19 +50,15 @@ type Relay struct {
 	// Ongoing transfers
 	transfers map[string]tx
 
-	// Generator of transfer session secrets
-	secrets Secrets
-
 	// Actions to add or remove transfers.
 	// `relay` is effectively an actor.
 	action chan func()
 }
 
-func NewRelay(secrets Secrets) *Relay {
+func NewRelay() *Relay {
 	return &Relay{
 		transfers: make(map[string]tx),
 		action:    make(chan func()),
-		secrets:   secrets,
 	}
 }
 
@@ -72,58 +68,6 @@ func (r *Relay) Run() {
 	for a := range r.action {
 		a()
 	}
-}
-
-// Onboards a new connection for a sender or a receiver.
-// For a sender a secret will be generated and sent to the sender.
-// For a receiver a secret will be read from the connection.
-// A valid client then joins a transfer, either creating it for a sender
-// or being associated with an existing transform for a receiver.
-func (r *Relay) onboard(conn net.Conn) {
-
-	dec := wire.NewDecoder(conn)
-	clientType, err := dec.DecodeByte()
-	if err != nil {
-		log.Println("failed reading first byte:", err)
-		conn.Close()
-		return
-	}
-
-	log.Println("onboarding for", clientType)
-
-	var secret string
-
-	switch clientType {
-	case session.MsgSend:
-		log.Println("sending secret")
-		secret = r.secrets.Secret()
-		log.Println("generated secret is", secret)
-		err = wire.NewEncoder(conn).EncodeString(secret)
-		if err != nil {
-			log.Println("send secret in onboard:", err)
-			conn.Close()
-			return
-		}
-	case session.MsgRecv:
-		log.Println("receiving secret")
-		secret, err = dec.DecodeString()
-		if err != nil {
-			log.Println("recv secret in onboard:", err)
-			conn.Close()
-			return
-		}
-	default:
-		log.Println("invalid client type in onboard:", clientType)
-		conn.Close()
-		return
-	}
-
-	c := client{
-		conn:   conn,
-		side:   clientType,
-		secret: secret,
-	}
-	r.join(c)
 }
 
 // Joins a new client, either starting a new session for a sender or
