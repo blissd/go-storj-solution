@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/blissd/golang-storj-solution/pkg/session"
+	"io"
 	"log"
 	"os"
 	"path"
@@ -57,7 +58,11 @@ func main() {
 		log.Fatalln("failed sending file length:", err)
 	}
 
-	if _, err = s.Send(file); err != nil {
-		log.Fatalln("failed sending file contents:", err)
+	n, err := io.Copy(s, file)
+	if err != nil {
+		log.Fatalln("failed sending file:", err)
+	}
+	if n != info.Size() {
+		log.Fatalln("sent incorrect number of bytes:", n)
 	}
 }

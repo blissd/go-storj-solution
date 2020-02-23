@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/blissd/golang-storj-solution/pkg/session"
+	"io"
 	"log"
 	"os"
 	"path"
@@ -53,7 +54,11 @@ func main() {
 	}
 	defer file.Close()
 
-	if n, err := s.Recv(file); err != nil || n != length {
+	n, err := io.Copy(file, s)
+	if err != nil {
 		log.Fatalln("failed receiving file:", err)
+	}
+	if n != length {
+		log.Fatalln("incorrect number of bytes received:", n)
 	}
 }

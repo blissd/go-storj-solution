@@ -3,7 +3,6 @@ package session
 import (
 	"fmt"
 	"github.com/blissd/golang-storj-solution/pkg/wire"
-	"io"
 	"net"
 )
 
@@ -16,13 +15,9 @@ const (
 )
 
 type Session struct {
-	conn net.Conn
-	enc  wire.FrameEncoder
-	dec  wire.FrameDecoder
-}
-
-func (s *Session) Close() error {
-	return s.conn.Close()
+	net.Conn
+	enc wire.FrameEncoder
+	dec wire.FrameDecoder
 }
 
 func New(addr string) (*Session, error) {
@@ -31,7 +26,7 @@ func New(addr string) (*Session, error) {
 		return nil, fmt.Errorf("new session: %w", err)
 	}
 	return &Session{
-		conn: conn,
+		Conn: conn,
 		enc:  wire.NewEncoder(conn),
 		dec:  wire.NewDecoder(conn),
 	}, nil
@@ -84,12 +79,4 @@ func (s *Session) WaitForRecv() error {
 		return fmt.Errorf("session.WaitForRecv: wrong byte: %v", b)
 	}
 	return nil
-}
-
-func (s *Session) Send(r io.Reader) (int64, error) {
-	return io.Copy(s.conn, r)
-}
-
-func (s *Session) Recv(w io.Writer) (int64, error) {
-	return io.Copy(w, s.conn)
 }
