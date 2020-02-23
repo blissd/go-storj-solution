@@ -48,7 +48,7 @@ func (t *tx) Run(r *Relay) {
 // Manages transfers
 type Relay struct {
 	// Ongoing transfers
-	transfers map[string]tx
+	transfers map[string]*tx
 
 	// Actions to add or remove transfers.
 	// `relay` is effectively an actor.
@@ -57,7 +57,7 @@ type Relay struct {
 
 func NewRelay() *Relay {
 	return &Relay{
-		transfers: make(map[string]tx),
+		transfers: make(map[string]*tx),
 		action:    make(chan func()),
 	}
 }
@@ -75,36 +75,32 @@ func (r *Relay) Run() {
 // If a receiver has an unknown secret, then their connection is closed.
 func (r *Relay) join(c client) {
 	r.action <- func() {
-		log.Println("join for client:", c)
+		log.Println("join for client:", c.secret)
 		switch c.side {
 		case session.MsgSend:
-			log.Println("onboarding sender for", c.secret)
+			log.Println("joining sender for:", c.secret)
 			if _, ok := r.transfers[c.secret]; ok {
 				// should be very unlikely as the relay server generates secrets!
 				log.Println("skipping duplicate send client:", c.secret)
-				c.conn.Close()
+				_ = c.conn.Close()
 				return
 			}
-			r.transfers[c.secret] = tx{secret: c.secret, send: c.conn}
+			r.transfers[c.secret] = &tx{secret: c.secret, send: c.conn}
 		case session.MsgRecv:
-			log.Println("onboarding receiver for", c.secret)
+			log.Println("joining receiver for", c.secret)
 			if _, ok := r.transfers[c.secret]; !ok {
 				log.Println("skipping recv client because no active tx:", c.secret)
-				c.conn.Close()
+				_ = c.conn.Close()
 				return
 			}
 			t := r.transfers[c.secret]
 			t.recv = c.conn
 
-			// Not a map of pointers, so setting t.recv doesn't update r.transfers[c.secret].recv!
-			// Should I use a map of pointers to tx?
-			r.transfers[c.secret] = t
-
-			// sender and receiver are connect so now start relaying traffic
-			log.Println("relay traffic")
+			// sender and receiver are connected so now start relaying traffic
 			go t.Run(r)
 		default:
 			log.Println("skipping client because side is invalid:", c.side)
+			_ = c.conn.Close()
 		}
 	}
 }
@@ -116,12 +112,10 @@ func (r *Relay) close(secret string) {
 		defer delete(r.transfers, secret)
 		if t, ok := r.transfers[secret]; ok {
 			if t.send != nil {
-				log.Println("closing send:", secret)
-				t.send.Close()
+				_ = t.send.Close()
 			}
 			if t.recv != nil {
-				log.Println("closing recv:", secret)
-				t.recv.Close()
+				_ = t.recv.Close()
 			}
 		}
 	}
