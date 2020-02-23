@@ -15,35 +15,43 @@ Messages are represented as variable size data frames prefixed by a single byte 
 As such the payload to a message frame can be at most 254 bytes, which is long enough to accommodate the session
 secret and the file name.
 
+Prefixing messages with their size makes them self-describing and easy to read.
+
 The initial message from a client to the relay server specifies the client type (sender or receiver), but subsequent
 messages don't specify any type. Instead, the type is inferred from the message ordering.
 
-The messages are used by clients to establish their connection with the relay server, and then by client to exchange
-information about the file (the name and size). After the session and file facts are established, no further messages
-are exchanged. The file data is simply streamed from sender to receiver.
+After clients have been connected via the relay server the sender will send both the file name and file size to the
+receiver. The file size is sent so the receiver can determine if the full file has been received from the sender.
+Without the file size a partial send by the sender would not be detected by the receiver because the relay server 
+doesn't inform clients of any error conditions.
 
 ### The 'wire' Package
 The `wire` package defines functions for encoding and decoding data types into frames. The package defines
 a `FrameEncoder` and a `FrameDecoder` which are intended to wrap standard Golang `io.Reader`s and `io.Writer`s.
 The use of encoders for framing is inspired by the JSON and XML encoders already present in Golang.
 
-### Sender Message Exchange
-
 
 ## Clients
 The sender and receiver clients use the `session` package to communicate with the relay server. The `session` package
-is a higher-level wrapper around the `wire` package to provide a more client friendly API. 
+is a higher-level thin wrapper around the `wire` package to provide a more client friendly API. 
 
 ## Relay
 The relay server defines a `Relay` struct type that is used to handle session establishment and transfers. The
-`Relay` is in effect an actor because it has an `actions` channel defined as `action chan func()` which receives 
-functions to be executes against the `Relay` state in a synchronised way. Because the state is only processed by the
+`Relay` is in effect an actor because it has an `actions` channel, defined as `action chan func()`, which receives 
+functions to be executed against the `Relay` state in a synchronised way. Because the state is only processed by the
 go routine that consumes from the `actions` channel it isn't necessary to a mutex for guarding updates to
 the session state.
 
 This actor pattern was inspired by the talk "Ways To Do Things"
  ([slides](https://speakerdeck.com/peterbourgon/ways-to-do-things) and [video](https://www.youtube.com/watch?v=LHe1Cb_Ud_M)).
 
+The `Secrets` interface is for generating secrets. There are two secret generates: one that always generates the same
+secret and was for testing purposes, and another that generates a six character pseudo-random secret.
 
+## Shortcomings to be Addressed
 
+If a receiver never connects to a waiting sender session, then the session lingers in the relay server forever.
 
+If a receiver connects and doesn't consume data, then the session will linger in the relay server forever.
+
+The relay server doesn't inform clients of errors, it just closes the client connection.
