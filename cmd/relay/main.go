@@ -48,7 +48,7 @@ func onboard(r *Relay, secrets Secrets, conn net.Conn) {
 	clientType, err := dec.DecodeByte()
 	if err != nil {
 		log.Println("failed reading first byte:", err)
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 
@@ -64,7 +64,7 @@ func onboard(r *Relay, secrets Secrets, conn net.Conn) {
 		err = wire.NewEncoder(conn).EncodeString(secret)
 		if err != nil {
 			log.Println("send secret in onboard:", err)
-			conn.Close()
+			_ = conn.Close()
 			return
 		}
 	case session.MsgRecv:
@@ -72,12 +72,12 @@ func onboard(r *Relay, secrets Secrets, conn net.Conn) {
 		secret, err = dec.DecodeString()
 		if err != nil {
 			log.Println("recv secret in onboard:", err)
-			conn.Close()
+			_ = conn.Close()
 			return
 		}
 	default:
 		log.Println("invalid client type in onboard:", clientType)
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 
