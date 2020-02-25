@@ -82,7 +82,7 @@ func onboard(r *relay, secrets secrets, conn net.Conn) {
 		return
 	}
 
-	c := client{
+	c := clientInfo{
 		conn:   conn,
 		side:   clientType,
 		secret: secret,

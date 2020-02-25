@@ -9,7 +9,7 @@ import (
 )
 
 // a sender or receiver connecting to the relay
-type client struct {
+type clientInfo struct {
 	// connection to client
 	conn net.Conn
 	// send or recv
@@ -19,7 +19,7 @@ type client struct {
 }
 
 // an ongoing transfer between sender and receiver
-type tx struct {
+type transfer struct {
 	// unique key for transfer
 	secret string
 	send   net.Conn
@@ -27,7 +27,7 @@ type tx struct {
 }
 
 // Copies bytes from sender to receiver
-func (t *tx) run(r *relay) {
+func (t *transfer) run(r *relay) {
 	defer r.close(t.secret)
 
 	// Send "receiver is ready" message to sender so that the
@@ -48,7 +48,7 @@ func (t *tx) run(r *relay) {
 // Manages transfers
 type relay struct {
 	// Ongoing transfers
-	transfers map[string]*tx
+	transfers map[string]*transfer
 
 	// Actions to add or remove transfers.
 	// `Relay` is effectively an actor.
@@ -57,7 +57,7 @@ type relay struct {
 
 func newRelay() *relay {
 	return &relay{
-		transfers: make(map[string]*tx),
+		transfers: make(map[string]*transfer),
 		action:    make(chan func()),
 	}
 }
@@ -73,7 +73,7 @@ func (r *relay) Run() {
 // Joins a new client, either starting a new session for a sender or
 // connecting a receiver to an existing session.
 // If a receiver has an unknown secret, then their connection is closed.
-func (r *relay) join(c client) {
+func (r *relay) join(c clientInfo) {
 	r.action <- func() {
 		log.Println("join for client:", c.secret)
 		switch c.side {
@@ -85,7 +85,7 @@ func (r *relay) join(c client) {
 				_ = c.conn.Close()
 				return
 			}
-			r.transfers[c.secret] = &tx{secret: c.secret, send: c.conn}
+			r.transfers[c.secret] = &transfer{secret: c.secret, send: c.conn}
 		case session.MsgRecv:
 			log.Println("joining receiver for", c.secret)
 			if _, ok := r.transfers[c.secret]; !ok {
