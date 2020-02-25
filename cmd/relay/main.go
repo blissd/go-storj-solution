@@ -23,9 +23,9 @@ func main() {
 	}
 	defer l.Close()
 
-	//secrets := NewFixedSecret("abc123")
-	secrets := NewRandomSecrets(6, time.Now().UnixNano())
-	r := NewRelay()
+	//secrets := newFixedSecret("abc123")
+	secrets := newRandomSecrets(6, time.Now().UnixNano())
+	r := newRelay()
 	go r.Run()
 
 	for {
@@ -43,7 +43,7 @@ func main() {
 // For a receiver a secret will be read from the connection.
 // A valid client then joins a transfer, either creating it for a sender
 // or being associated with an existing transform for a receiver.
-func onboard(r *Relay, secrets Secrets, conn net.Conn) {
+func onboard(r *relay, secrets secrets, conn net.Conn) {
 
 	dec := wire.NewDecoder(conn)
 	clientType, err := dec.DecodeByte()
@@ -60,7 +60,7 @@ func onboard(r *Relay, secrets Secrets, conn net.Conn) {
 	switch clientType {
 	case session.MsgSend:
 		log.Println("sending secret")
-		secret = secrets.Secret()
+		secret = secrets.secret()
 		log.Println("generated secret is", secret)
 		err = wire.NewEncoder(conn).EncodeString(secret)
 		if err != nil {

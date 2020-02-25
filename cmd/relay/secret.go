@@ -5,8 +5,8 @@ import (
 	"sync"
 )
 
-type Secrets interface {
-	Secret() string
+type secrets interface {
+	secret() string
 }
 type randomSecrets struct {
 	// rand.Rand isn't concurrent-safe, so guard it
@@ -23,7 +23,7 @@ type randomSecrets struct {
 }
 
 // Generates a new random secret.
-func (s *randomSecrets) Secret() string {
+func (s *randomSecrets) secret() string {
 	defer s.Unlock()
 	s.Lock()
 	b := make([]byte, s.length)
@@ -34,7 +34,7 @@ func (s *randomSecrets) Secret() string {
 }
 
 // Make a Secrets that returns random secret values
-func NewRandomSecrets(length int, seed int64) Secrets {
+func newRandomSecrets(length int, seed int64) secrets {
 
 	s := &randomSecrets{
 		length:  length,
@@ -47,11 +47,11 @@ func NewRandomSecrets(length int, seed int64) Secrets {
 
 type fixedSecrets string
 
-// Make a Secrets that always returns the same Secret for easy testing
-func NewFixedSecret(secret string) Secrets {
+// Make a Secrets that always returns the same secret for easy testing
+func newFixedSecret(secret string) secrets {
 	return fixedSecrets(secret)
 }
 
-func (s fixedSecrets) Secret() string {
+func (s fixedSecrets) secret() string {
 	return string(s)
 }

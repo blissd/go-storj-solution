@@ -27,7 +27,7 @@ type tx struct {
 }
 
 // Copies bytes from sender to receiver
-func (t *tx) Run(r *Relay) {
+func (t *tx) Run(r *relay) {
 	defer r.close(t.secret)
 
 	// Send "receiver is ready" message to sender so that the
@@ -46,7 +46,7 @@ func (t *tx) Run(r *Relay) {
 }
 
 // Manages transfers
-type Relay struct {
+type relay struct {
 	// Ongoing transfers
 	transfers map[string]*tx
 
@@ -55,8 +55,8 @@ type Relay struct {
 	action chan func()
 }
 
-func NewRelay() *Relay {
-	return &Relay{
+func newRelay() *relay {
+	return &relay{
 		transfers: make(map[string]*tx),
 		action:    make(chan func()),
 	}
@@ -64,7 +64,7 @@ func NewRelay() *Relay {
 
 // Process actions to update relay state, such as clients joining and leaving a transfer
 // Functions sent to r.action must be non-blocking.
-func (r *Relay) Run() {
+func (r *relay) Run() {
 	for a := range r.action {
 		a()
 	}
@@ -73,7 +73,7 @@ func (r *Relay) Run() {
 // Joins a new client, either starting a new session for a sender or
 // connecting a receiver to an existing session.
 // If a receiver has an unknown secret, then their connection is closed.
-func (r *Relay) join(c client) {
+func (r *relay) join(c client) {
 	r.action <- func() {
 		log.Println("join for client:", c.secret)
 		switch c.side {
@@ -106,7 +106,7 @@ func (r *Relay) join(c client) {
 }
 
 // cleans up after ending a transfer for any reason
-func (r *Relay) close(secret string) {
+func (r *relay) close(secret string) {
 	r.action <- func() {
 		log.Println("closing:", secret)
 		defer delete(r.transfers, secret)
