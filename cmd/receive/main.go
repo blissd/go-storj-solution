@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/blissd/golang-storj-solution/pkg/session"
+	"github.com/blissd/golang-storj-solution/pkg/client"
 	"io"
 	"log"
 	"os"
@@ -22,14 +22,14 @@ func main() {
 		log.Fatalln("output must be an existing directory")
 	}
 
-	s, err := session.New(addr)
+	s, err := client.NewSession(addr)
 	if err != nil {
-		log.Fatalln("failed creating session:", err)
+		log.Fatalln("failed creating client:", err)
 	}
 	defer s.Close()
 
-	if err = s.SendRecvReady(); err != nil {
-		log.Fatalln("failed starting recv session:", err)
+	if err = s.SendClientTypeReceiver(); err != nil {
+		log.Fatalln("failed starting recv client:", err)
 	}
 
 	err = s.SendSecret(secret)

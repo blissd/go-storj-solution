@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/blissd/golang-storj-solution/pkg/session"
+	"github.com/blissd/golang-storj-solution/pkg/client"
 	"github.com/blissd/golang-storj-solution/pkg/wire"
 	"io"
 	"log"
@@ -33,7 +33,7 @@ func (t *transfer) run(r *relay) {
 	// Send "receiver is ready" message to sender so that the
 	// sender can start sending bytes.
 	enc := wire.NewEncoder(t.send)
-	if err := enc.EncodeByte(session.MsgRecv); err != nil {
+	if err := enc.EncodeByte(client.MsgRecv); err != nil {
 		log.Println("send recv ready failed:", err)
 		return
 	}
@@ -70,14 +70,14 @@ func (r *relay) Run() {
 	}
 }
 
-// Joins a new client, either starting a new session for a sender or
-// connecting a receiver to an existing session.
+// Joins a new client, either starting a new client for a sender or
+// connecting a receiver to an existing client.
 // If a receiver has an unknown secret, then their connection is closed.
 func (r *relay) join(c clientInfo) {
 	r.action <- func() {
 		log.Println("join for client:", c.secret)
 		switch c.side {
-		case session.MsgSend:
+		case client.MsgSend:
 			log.Println("joining sender for:", c.secret)
 			if _, ok := r.transfers[c.secret]; ok {
 				// should be very unlikely as the relay server generates secrets!
@@ -86,7 +86,7 @@ func (r *relay) join(c clientInfo) {
 				return
 			}
 			r.transfers[c.secret] = &transfer{secret: c.secret, send: c.conn}
-		case session.MsgRecv:
+		case client.MsgRecv:
 			log.Println("joining receiver for", c.secret)
 			if _, ok := r.transfers[c.secret]; !ok {
 				log.Println("skipping recv client because no active tx:", c.secret)

@@ -1,4 +1,4 @@
-package session
+package client
 
 import (
 	"fmt"
@@ -20,7 +20,7 @@ type Session struct {
 	dec wire.FrameDecoder
 }
 
-func New(addr string) (*Session, error) {
+func NewSession(addr string) (*Session, error) {
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("new session: %w", err)
@@ -58,25 +58,25 @@ func (s *Session) RecvFileLength() (int64, error) {
 
 // Informs server that client is a receiver.
 // Informs sender that receiver is connected and ready.
-func (s *Session) SendSendReady() error {
+func (s *Session) SendClientTypeSender() error {
 	return s.enc.EncodeByte(MsgSend)
 }
 
 // Informs server that client is a receiver.
 // Informs sender that receiver is connected and ready.
-func (s *Session) SendRecvReady() error {
+func (s *Session) SendClientTypeReceiver() error {
 	return s.enc.EncodeByte(MsgRecv)
 }
 
 // Informs server that client is a receiver.
 // Informs sender that receiver is connected and ready.
-func (s *Session) WaitForRecv() error {
+func (s *Session) WaitForReceiver() error {
 	b, err := s.dec.DecodeByte()
 	if err != nil {
-		return fmt.Errorf("session.WaitForRecv: %w", err)
+		return fmt.Errorf("client.WaitForReceiver: %w", err)
 	}
 	if b != MsgRecv {
-		return fmt.Errorf("session.WaitForRecv: wrong byte: %v", b)
+		return fmt.Errorf("client.WaitForReceiver: wrong byte: %v", b)
 	}
 	return nil
 }

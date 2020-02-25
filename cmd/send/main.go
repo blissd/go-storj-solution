@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/blissd/golang-storj-solution/pkg/session"
+	"github.com/blissd/golang-storj-solution/pkg/client"
 	"io"
 	"log"
 	"os"
@@ -24,14 +24,14 @@ func main() {
 	}
 	defer file.Close()
 
-	s, err := session.New(addr)
+	s, err := client.NewSession(addr)
 	if err != nil {
-		log.Fatalln("failed creating session:", err)
+		log.Fatalln("failed creating client:", err)
 	}
 	defer s.Close()
 
-	if err = s.SendSendReady(); err != nil {
-		log.Fatalln("failed starting send session:", err)
+	if err = s.SendClientTypeSender(); err != nil {
+		log.Fatalln("failed starting send client:", err)
 	}
 
 	secret, err := s.RecvSecret()
@@ -41,7 +41,7 @@ func main() {
 
 	fmt.Println(secret)
 
-	if err = s.WaitForRecv(); err != nil {
+	if err = s.WaitForReceiver(); err != nil {
 		log.Fatalln("failed waiting for receiver:", err)
 	}
 

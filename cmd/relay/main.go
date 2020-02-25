@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/blissd/golang-storj-solution/pkg/session"
+	"github.com/blissd/golang-storj-solution/pkg/client"
 	"github.com/blissd/golang-storj-solution/pkg/wire"
 	"log"
 	"net"
@@ -58,7 +58,7 @@ func onboard(r *relay, secrets secrets, conn net.Conn) {
 	var secret string
 
 	switch clientType {
-	case session.MsgSend:
+	case client.MsgSend:
 		log.Println("sending secret")
 		secret = secrets.secret()
 		log.Println("generated secret is", secret)
@@ -68,7 +68,7 @@ func onboard(r *relay, secrets secrets, conn net.Conn) {
 			_ = conn.Close()
 			return
 		}
-	case session.MsgRecv:
+	case client.MsgRecv:
 		log.Println("receiving secret")
 		secret, err = dec.DecodeString()
 		if err != nil {
