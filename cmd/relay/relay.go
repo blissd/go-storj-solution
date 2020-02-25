@@ -27,7 +27,7 @@ type tx struct {
 }
 
 // Copies bytes from sender to receiver
-func (t *tx) Run(r *relay) {
+func (t *tx) run(r *relay) {
 	defer r.close(t.secret)
 
 	// Send "receiver is ready" message to sender so that the
@@ -41,7 +41,7 @@ func (t *tx) Run(r *relay) {
 	// Now just pipe from sender to receiver
 	// Note that the relay server doesn't care what messages are passed.
 	if _, err := io.Copy(t.recv, t.send); err != nil {
-		log.Println("tx.Run for:", t.secret, " failed with:", err)
+		log.Println("tx.run for:", t.secret, " failed with:", err)
 	}
 }
 
@@ -97,7 +97,7 @@ func (r *relay) join(c client) {
 			t.recv = c.conn
 
 			// sender and receiver are connected so now start relaying traffic
-			go t.Run(r)
+			go t.run(r)
 		default:
 			log.Println("skipping client because side is invalid:", c.side)
 			_ = c.conn.Close()
