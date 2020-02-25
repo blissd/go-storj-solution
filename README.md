@@ -29,21 +29,21 @@ The `wire` package defines functions for encoding and decoding data types into f
 a `FrameEncoder` and a `FrameDecoder` which are intended to wrap standard Golang `io.Reader`s and `io.Writer`s.
 The use of encoders for framing is inspired by the JSON and XML encoders already present in Golang.
 
-## The `session` Package
-The sender and receiver clients use the `session` package to communicate with the relay server. The `session` package
+## The `client` Package
+The sender and receiver clients use the `client` package to communicate with the relay server. The `client` package
 is a higher-level thin wrapper around the `wire` package to provide a more client friendly API. 
 
 ## Relay Server
-The relay server defines a `Relay` struct type that is used to handle session establishment and transfers. The
-`Relay` is in effect an actor because it has an `actions` channel, defined as `action chan func()`, which receives 
-functions to be executed against the `Relay` state in a synchronised way. Because the state is only processed by the
+The relay server defines a `relay` struct type that is used to handle session establishment and transfers. The
+`relay` is in effect an actor because it has an `actions` channel, defined as `action chan func()`, which receives 
+functions to be executed against the `relay` state in a synchronised way. Because the state is only processed by the
 go routine that consumes from the `actions` channel it isn't necessary to a mutex for guarding updates to
 the session state.
 
 This actor pattern was inspired by the talk "Ways To Do Things"
  ([slides](https://speakerdeck.com/peterbourgon/ways-to-do-things) and [video](https://www.youtube.com/watch?v=LHe1Cb_Ud_M)).
 
-The `Secrets` interface is for generating secrets. There are two secret generates: one that always generates the same
+The `secrets` interface is for generating secrets. There are two secret generates: one that always generates the same
 secret and was for testing purposes, and another that generates a six character pseudo-random secret.
 
 ## Shortcomings to be Addressed
