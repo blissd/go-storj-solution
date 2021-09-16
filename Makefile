@@ -12,4 +12,4 @@ relay:
 	go build go-storj-solution/cmd/relay
 
 test:
-	go test .
+	CGO_ENABLED=0 go test ./...
