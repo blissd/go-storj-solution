@@ -96,40 +96,35 @@ func (s *service) Send(r *SendRequest) (*SendResponse, error) {
 		Errors: errs,
 	}
 
-	// format error message, send to control channel, and close channel
-	fail := func(msg string, err error) {
-		errs <- fmt.Errorf("%v: %w", msg, err)
-		close(errs)
-	}
-
 	go func() {
+		defer close(errs)
+
 		// Wait for receiver to join relay proxy
 		if b, err := s.dec.DecodeByte(); b != byte(MsgRecv) || err != nil {
-			fail(fmt.Sprintf("bad receiver [%v]", b), err)
+			errs <- fmt.Errorf("bad receiver [%v]: %w", b, err)
 			return
 		}
 
 		// Send file name
 		if err := s.enc.EncodeString(r.Name); err != nil {
-			fail("sending file name", err)
+			errs <- fmt.Errorf("sending file name: %w", err)
 			return
 		}
 
 		if err := s.enc.EncodeInt64(r.Length); err != nil {
-			fail("sending length", err)
+			errs <- fmt.Errorf("sending length: %w", err)
 			return
 		}
 
 		written, err := io.Copy(s.con, r.Body)
 		if err != nil {
-			fail("sending file", err)
+			errs <- fmt.Errorf("sending file: %w", err)
 			return
 		}
 		if written != r.Length {
-			fail(fmt.Sprintf("unexpected length [%v]", written), nil)
+			errs <- fmt.Errorf("unexpected length [%v]", written)
 			return
 		}
-		close(errs) // signal successful copy
 	}()
 
 	return response, nil
