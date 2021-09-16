@@ -72,7 +72,7 @@ func (r *relay) Run() {
 
 // Joins a new client, either starting a new client for a sender or
 // connecting a receiver to an existing client.
-// If a receiver has an unknown secret, then their connection is closed.
+// If a receiver has an unknown Secret, then their connection is closed.
 func (r *relay) join(c clientInfo) {
 	r.action <- func() {
 		log.Println("join for client:", c.secret)
@@ -80,7 +80,7 @@ func (r *relay) join(c clientInfo) {
 		case client.MsgSend:
 			log.Println("joining sender for:", c.secret)
 			if _, ok := r.transfers[c.secret]; ok {
-				// should be very unlikely as the relay server generates secrets!
+				// should be very unlikely as the relay server generates Secrets!
 				log.Println("skipping duplicate send client:", c.secret)
 				_ = c.conn.Close()
 				return

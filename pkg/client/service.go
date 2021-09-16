@@ -22,7 +22,7 @@ type Service interface {
 	// A secret and control channel is returned. Receives will need to provide the secret
 	// to receive the file. The control channel is used to report errors and notify the
 	// caller that the file has been sent. If the channel closes and doesn't contain an error then
-	// the file was successfully sent. If an error occured then it will be available on the channel.
+	// the file was successfully sent. If an error occurred then it will be available on the channel.
 	Send(*os.File) (string, <-chan error)
 
 	// Recv receives files through the relay proxy. Files can only be received with

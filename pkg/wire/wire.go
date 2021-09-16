@@ -6,7 +6,7 @@
 // byte 1 - frame id, effectively the type of frame.
 // byte 2+ - frame payload, up to 253 bytes
 // Frames don't encode any type information It is up to the caller to
-// understand what type correlates to what frame id.
+// understand what type correlates to what frame.
 package wire
 
 import (

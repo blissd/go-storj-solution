@@ -2,6 +2,7 @@ package main
 
 import (
 	"go-storj-solution/pkg/client"
+	"go-storj-solution/pkg/proxy"
 	"go-storj-solution/pkg/wire"
 	"log"
 	"net"
@@ -23,8 +24,8 @@ func main() {
 	}
 	defer l.Close()
 
-	//secrets := newFixedSecret("abc123")
-	secrets := newRandomSecrets(6, time.Now().UnixNano())
+	//Secrets := NewFixedSecret("abc123")
+	secrets := proxy.NewRandomSecrets(6, time.Now().UnixNano())
 	r := newRelay()
 	go r.Run()
 
@@ -39,11 +40,11 @@ func main() {
 }
 
 // Onboards a new connection for a sender or a receiver.
-// For a sender a secret will be generated and sent to the sender.
-// For a receiver a secret will be read from the connection.
+// For a sender a Secret will be generated and sent to the sender.
+// For a receiver a Secret will be read from the connection.
 // A valid client then joins a transfer, either creating it for a sender
 // or being associated with an existing transform for a receiver.
-func onboard(r *relay, secrets secrets, conn net.Conn) {
+func onboard(r *relay, secrets proxy.Secrets, conn net.Conn) {
 
 	dec := wire.NewDecoder(conn)
 	clientType, err := dec.DecodeByte()
@@ -59,20 +60,20 @@ func onboard(r *relay, secrets secrets, conn net.Conn) {
 
 	switch clientType {
 	case client.MsgSend:
-		log.Println("sending secret")
-		secret = secrets.secret()
-		log.Println("generated secret is", secret)
+		log.Println("sending Secret")
+		secret = secrets.Secret()
+		log.Println("generated Secret is", secret)
 		err = wire.NewEncoder(conn).EncodeString(secret)
 		if err != nil {
-			log.Println("send secret in onboard:", err)
+			log.Println("send Secret in onboard:", err)
 			_ = conn.Close()
 			return
 		}
 	case client.MsgRecv:
-		log.Println("receiving secret")
+		log.Println("receiving Secret")
 		secret, err = dec.DecodeString()
 		if err != nil {
-			log.Println("recv secret in onboard:", err)
+			log.Println("recv Secret in onboard:", err)
 			_ = conn.Close()
 			return
 		}
