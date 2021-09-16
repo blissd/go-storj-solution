@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/blissd/golang-storj-solution/pkg/client"
-	"github.com/blissd/golang-storj-solution/pkg/wire"
+	"go-storj-solution/pkg/client"
+	"go-storj-solution/pkg/wire"
 	"log"
 	"net"
 	"os"

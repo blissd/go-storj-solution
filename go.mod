@@ -1,3 +1,3 @@
-module github.com/blissd/golang-storj-solution
+module go-storj-solution
 
-go 1.13
+go 1.16

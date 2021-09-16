@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/blissd/golang-storj-solution/pkg/client"
+	"go-storj-solution/pkg/client"
 	"io"
 	"log"
 	"os"
@@ -22,29 +22,15 @@ func main() {
 		log.Fatalln("output must be an existing directory")
 	}
 
-	s, err := client.NewSession(addr)
+	s, err := client.NewService(addr)
 	if err != nil {
 		log.Fatalln("failed creating client:", err)
 	}
 	defer s.Close()
 
-	if err = s.SendClientTypeReceiver(); err != nil {
-		log.Fatalln("failed starting recv client:", err)
-	}
-
-	err = s.SendSecret(secret)
+	r, name, err := s.Recv(secret)
 	if err != nil {
-		log.Fatalln("failed sending secret:", err)
-	}
-
-	name, err := s.RecvFileName()
-	if err != nil {
-		log.Fatalln("failed receiving file name:", err)
-	}
-
-	length, err := s.RecvFileLength()
-	if err != nil {
-		log.Fatalln("failed receiving file length:", err)
+		log.Fatalln("failed starting receive:", err)
 	}
 
 	filePath := path.Join(dir, name)
@@ -54,11 +40,7 @@ func main() {
 	}
 	defer file.Close()
 
-	n, err := io.Copy(file, s)
-	if err != nil {
+	if _, err := io.Copy(file, r); err != nil {
 		log.Fatalln("failed receiving file:", err)
-	}
-	if n != length {
-		log.Fatalln("incorrect number of bytes received:", n)
 	}
 }
