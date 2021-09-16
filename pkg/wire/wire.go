@@ -13,10 +13,12 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"unsafe"
 )
 
-// Encodes data types to an underlying io.Writer
+// sizeOfInt64 size of int64 in bytes
+const sizeOfInt64 = 8
+
+// FrameEncoder encodes data types to an underlying io.Writer
 type FrameEncoder interface {
 	EncodeBytes(bs []byte) error
 	EncodeByte(b byte) error
@@ -24,7 +26,7 @@ type FrameEncoder interface {
 	EncodeInt64(i int64) error
 }
 
-// Decodes data types from an underlying io.Reader
+// FrameDecoder Decodes data types from an underlying io.Reader
 type FrameDecoder interface {
 	DecodeBytes() ([]byte, error)
 	DecodeByte() (byte, error)
@@ -75,7 +77,7 @@ func (enc *frameEncoder) EncodeString(s string) error {
 }
 
 func (enc *frameEncoder) EncodeInt64(i int64) error {
-	if _, err := enc.Write([]byte{byte(unsafe.Sizeof(i) + 1)}); err != nil {
+	if _, err := enc.Write([]byte{byte(sizeOfInt64 + 1)}); err != nil {
 		return fmt.Errorf("wire.EncodeInt64: write length: %w", err)
 	}
 	if err := binary.Write(enc, binary.BigEndian, i); err != nil {
@@ -130,7 +132,7 @@ func (dec *frameDecoder) DecodeInt64() (int64, error) {
 	}
 
 	var i int64
-	if bs[0] != 1+byte(unsafe.Sizeof(i)) {
+	if bs[0] != 1+byte(sizeOfInt64) {
 		return 0, fmt.Errorf("wire.DecodeInt64: bad length: %v", bs[0])
 	}
 
