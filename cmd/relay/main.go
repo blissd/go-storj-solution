@@ -11,7 +11,7 @@ import (
 func main() {
 
 	if len(os.Args) != 2 {
-		log.Fatalln("Usage: Relay :<port>")
+		log.Fatalln("Usage: Service :<port>")
 	}
 
 	addr := os.Args[1]
@@ -24,9 +24,9 @@ func main() {
 
 	//secrets := NewFixedSecret("abc123")
 	secrets := proxy.NewRandomSecrets(6, time.Now().UnixNano())
-	r := proxy.New(secrets)
+	service := proxy.New(secrets)
 
-	go r.Run()
+	go service.Run()
 
 	for {
 		conn, err := l.Accept()
@@ -34,6 +34,6 @@ func main() {
 			log.Fatalln("failed to accept connection:", err)
 		}
 
-		go r.Onboard(conn)
+		go service.Onboard(conn)
 	}
 }

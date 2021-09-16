@@ -8,51 +8,8 @@ import (
 	"net"
 )
 
-// a sender or receiver connecting to the Relay
-type clientInfo struct {
-	// conn is connection to client
-	conn net.Conn
-
-	// side of the transfer, either sender or receiver
-	side client.Side
-
-	// secret identifies transfer
-	secret string
-}
-
-// an ongoing transfer between sender and receiver
-type transfer struct {
-	// secret is a unique key for transfer
-	secret string
-
-	// send is connection from the sender
-	send net.Conn
-
-	// recv is the connection to the receiver
-	recv net.Conn
-}
-
-// Copies bytes from sender to receiver
-func (t *transfer) run(r *Relay) {
-	defer r.close(t.secret)
-
-	// Send "receiver is ready" message to sender so that the
-	// sender can start sending bytes.
-	enc := wire.NewEncoder(t.send)
-	if err := enc.EncodeByte(byte(client.MsgRecv)); err != nil {
-		log.Println("send recv ready failed:", err)
-		return
-	}
-
-	// Now just pipe from sender to receiver
-	// Note that the Relay server doesn't care what messages are passed.
-	if _, err := io.Copy(t.recv, t.send); err != nil {
-		log.Println("tx.run for:", t.secret, " failed with:", err)
-	}
-}
-
-// Relay manages transfers between senders and receivers.
-type Relay struct {
+// Service manages transfers between senders and receivers.
+type Service struct {
 	// secrets source
 	secrets Secrets
 
@@ -60,12 +17,12 @@ type Relay struct {
 	transfers map[string]*transfer
 
 	// action to add or remove transfers.
-	// `Relay` is effectively an actor.
+	// `Service` is effectively an actor.
 	action chan func()
 }
 
-func New(secrets Secrets) *Relay {
-	return &Relay{
+func New(secrets Secrets) *Service {
+	return &Service{
 		secrets:   secrets,
 		transfers: make(map[string]*transfer),
 		action:    make(chan func()),
@@ -75,22 +32,22 @@ func New(secrets Secrets) *Relay {
 // Run processes actions to update relay proxy state, such as clients joining and leaving a transfer.
 // Functions sent to r.action must be non-blocking.
 // Expected to be called from a go routine.
-func (r *Relay) Run() {
+func (r *Service) Run() {
 	for a := range r.action {
 		a()
 	}
 }
 
-// Onboard adds a sender or receiver to the Relay proxy.
+// Onboard adds a sender or receiver to the Service proxy.
 // For a sender a Secret will be generated and sent to the sender.
 // For a receiver a Secret will be read from the connection.
 // A valid client then joins a transfer, either creating it for a sender
 // or being associated with an existing transform for a receiver.
 // Expected to be called from a go routine.
-func (r *Relay) Onboard(conn net.Conn) {
+func (r *Service) Onboard(conn net.Conn) {
 	dec := wire.NewDecoder(conn)
 
-	var clientType client.Side
+	var side client.Side
 	{
 		b, err := dec.DecodeByte()
 		if err != nil {
@@ -99,14 +56,14 @@ func (r *Relay) Onboard(conn net.Conn) {
 			return
 		}
 
-		clientType = client.Side(b)
+		side = client.Side(b)
 	}
 
-	log.Println("onboarding for", clientType)
+	log.Println("onboarding for", side)
 
 	var secret string
 
-	switch clientType {
+	switch side {
 	case client.MsgSend:
 		// Onboarding a sender so generate and send secret for this transfer
 		log.Println("sending Secret")
@@ -127,56 +84,56 @@ func (r *Relay) Onboard(conn net.Conn) {
 			return
 		}
 	default:
-		log.Println("invalid client type in onboard:", clientType)
+		log.Println("invalid client type in onboard:", side)
 		_ = conn.Close()
 		return
 	}
 
-	c := clientInfo{
+	ts := transferSide{
 		conn:   conn,
-		side:   clientType,
+		side:   side,
 		secret: secret,
 	}
-	r.join(c)
+	r.join(ts)
 }
 
-// Joins a new client, either starting a new client for a sender or
+// Joins a new side of the transfer, either starting a new client for a sender or
 // connecting a receiver to an existing client.
 // If a receiver has an unknown Secret, then their connection is closed.
-func (r *Relay) join(c clientInfo) {
+func (r *Service) join(ts transferSide) {
 	r.action <- func() {
-		log.Println("join for client:", c.secret)
-		switch c.side {
+		log.Println("join for client:", ts.secret)
+		switch ts.side {
 		case client.MsgSend:
-			log.Println("joining sender for:", c.secret)
-			if _, ok := r.transfers[c.secret]; ok {
-				// should be very unlikely as the Relay server generates Secrets!
-				log.Println("skipping duplicate send client:", c.secret)
-				_ = c.conn.Close()
+			log.Println("joining sender for:", ts.secret)
+			if _, ok := r.transfers[ts.secret]; ok {
+				// should be very unlikely as the Service server generates Secrets!
+				log.Println("skipping duplicate send client:", ts.secret)
+				_ = ts.conn.Close()
 				return
 			}
-			r.transfers[c.secret] = &transfer{secret: c.secret, send: c.conn}
+			r.transfers[ts.secret] = &transfer{secret: ts.secret, send: ts.conn}
 		case client.MsgRecv:
-			log.Println("joining receiver for", c.secret)
-			if _, ok := r.transfers[c.secret]; !ok {
-				log.Println("skipping recv client because no active tx:", c.secret)
-				_ = c.conn.Close()
+			log.Println("joining receiver for", ts.secret)
+			if _, ok := r.transfers[ts.secret]; !ok {
+				log.Println("skipping recv client because no active tx:", ts.secret)
+				_ = ts.conn.Close()
 				return
 			}
-			t := r.transfers[c.secret]
-			t.recv = c.conn
+			t := r.transfers[ts.secret]
+			t.recv = ts.conn
 
 			// sender and receiver are connected so now start relaying traffic
 			go t.run(r)
 		default:
-			log.Println("skipping client because side is invalid:", c.side)
-			_ = c.conn.Close()
+			log.Println("skipping client because side is invalid:", ts.side)
+			_ = ts.conn.Close()
 		}
 	}
 }
 
 // cleans up after ending a transfer for any reason
-func (r *Relay) close(secret string) {
+func (r *Service) close(secret string) {
 	r.action <- func() {
 		log.Println("closing:", secret)
 		defer delete(r.transfers, secret)
@@ -188,5 +145,48 @@ func (r *Relay) close(secret string) {
 				_ = t.recv.Close()
 			}
 		}
+	}
+}
+
+// transfer an ongoing transfer between sender and receiver
+type transfer struct {
+	// secret is a unique key for transfer
+	secret string
+
+	// send is connection from the sender
+	send net.Conn
+
+	// recv is the connection to the receiver
+	recv net.Conn
+}
+
+// transferSide a client side of a transfer
+type transferSide struct {
+	// conn is connection to client
+	conn net.Conn
+
+	// side of the transfer, either sender or receiver
+	side client.Side
+
+	// secret identifies transfer
+	secret string
+}
+
+// Copies bytes from sender to receiver
+func (t *transfer) run(r *Service) {
+	defer r.close(t.secret)
+
+	// Send "receiver is ready" message to sender so that the
+	// sender can start sending bytes.
+	enc := wire.NewEncoder(t.send)
+	if err := enc.EncodeByte(byte(client.MsgRecv)); err != nil {
+		log.Println("send recv ready failed:", err)
+		return
+	}
+
+	// Now just pipe from sender to receiver
+	// Note that the Service server doesn't care what messages are passed.
+	if _, err := io.Copy(t.recv, t.send); err != nil {
+		log.Println("tx.run for:", t.secret, " failed with:", err)
 	}
 }
