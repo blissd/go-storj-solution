@@ -24,7 +24,7 @@ func main() {
 
 	//secrets := NewFixedSecret("abc123")
 	secrets := proxy.NewRandomSecrets(6, time.Now().UnixNano())
-	r := New(secrets)
+	r := proxy.New(secrets)
 
 	go r.Run()
 

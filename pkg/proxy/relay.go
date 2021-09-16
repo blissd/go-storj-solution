@@ -1,8 +1,7 @@
-package main
+package proxy
 
 import (
 	"go-storj-solution/pkg/client"
-	"go-storj-solution/pkg/proxy"
 	"go-storj-solution/pkg/wire"
 	"io"
 	"log"
@@ -52,10 +51,10 @@ func (t *transfer) run(r *Relay) {
 	}
 }
 
-// Manages transfers between senders and receivers.
+// Relay manages transfers between senders and receivers.
 type Relay struct {
 	// secrets source
-	secrets proxy.Secrets
+	secrets Secrets
 
 	// transfers that are in progress
 	transfers map[string]*transfer
@@ -65,7 +64,7 @@ type Relay struct {
 	action chan func()
 }
 
-func New(secrets proxy.Secrets) *Relay {
+func New(secrets Secrets) *Relay {
 	return &Relay{
 		secrets:   secrets,
 		transfers: make(map[string]*transfer),
