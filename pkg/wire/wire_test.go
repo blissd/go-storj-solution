@@ -3,7 +3,6 @@ package wire
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
 	"unsafe"
@@ -34,8 +33,8 @@ func TestEncodeString(t *testing.T) {
 				t.Fatalf("frame length incorrect. Expected %v, got %v", len(tt.s)+1, len(bs))
 			}
 
-			if bs[0] != uint8(len(tt.s)+1) {
-				t.Fatalf("Expected encoded frame length to be %v, got %v", len(tt.s)+1, bs[0])
+			if bs[0] != uint8(len(tt.s)) {
+				t.Fatalf("Expected encoded frame length to be %v, got %v", len(tt.s), bs[0])
 			}
 
 			s := string(bs[1:])
@@ -104,7 +103,7 @@ func TestEncodeInt64(t *testing.T) {
 				t.Fatalf("frame length incorrect. Expected %v, got %v", 1+unsafe.Sizeof(tt.i), len(bs))
 			}
 
-			if bs[0] != 1+byte(unsafe.Sizeof(tt.i)) {
+			if bs[0] != byte(unsafe.Sizeof(tt.i)) {
 				t.Fatalf("Expected frame length of %v, got %v", 1+byte(unsafe.Sizeof(tt.i)), bs[0])
 			}
 
@@ -176,8 +175,12 @@ func Test_frameEncoder_EncodeBytes(t *testing.T) {
 			}
 
 			bs := tt.fields.Writer.Bytes()
-			assert.Equal(t, byte(len(tt.args.bs)+1), bs[0])
-			assert.True(t, reflect.DeepEqual(tt.args.bs, bs[1:]))
+			if len(tt.args.bs) != int(bs[0]) {
+				t.Errorf("want = %v, got = %v", tt.args.bs, bs[0])
+			}
+			if !reflect.DeepEqual(tt.args.bs, bs[1:]) {
+				t.Errorf("want = %v, got = %v", tt.args.bs, bs[1:])
+			}
 		})
 	}
 }
