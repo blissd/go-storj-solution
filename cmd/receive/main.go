@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"go-storj-solution/pkg/client"
 	"io"
 	"log"
@@ -18,29 +20,38 @@ func main() {
 	secret := os.Args[2]
 	dir := os.Args[3]
 
+	if err := run(addr, secret, dir); err != nil {
+		fmt.Fprintf(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+}
+
+func run(addr string, secret string, dir string) error {
+
 	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
-		log.Fatalln("output must be an existing directory")
+		return errors.New("no such directory")
 	}
 
 	s, err := client.NewService(addr)
 	if err != nil {
-		log.Fatalln("failed creating client:", err)
+		return fmt.Errorf("creating service: %w", err)
 	}
 	defer s.Close()
 
 	r, name, err := s.Recv(secret)
 	if err != nil {
-		log.Fatalln("failed starting receive:", err)
+		return fmt.Errorf("starting receive: %w", err)
 	}
 
 	filePath := path.Join(dir, name)
 	file, err := os.Create(filePath)
 	if err != nil {
-		log.Fatalln("failed creating output file:", err)
+		return fmt.Errorf("creating output file: %w", err)
 	}
 	defer file.Close()
 
 	if _, err := io.Copy(file, r); err != nil {
-		log.Fatalln("failed receiving file:", err)
+		return fmt.Errorf("receiving file: %w", err)
 	}
+	return nil
 }

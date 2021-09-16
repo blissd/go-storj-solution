@@ -8,13 +8,20 @@ import (
 )
 
 func main() {
-
 	if len(os.Args) != 3 {
 		log.Fatalln("Usage: send <relay-host>:<relay-port> <file-to-send>")
 	}
 
 	addr := os.Args[1]
 	filePath := os.Args[2]
+
+	if err := run(addr, filePath); err != nil {
+		fmt.Fprintf(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+}
+
+func run(addr string, filePath string) error {
 
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -37,4 +44,5 @@ func main() {
 			log.Fatalln("failed sending file:", err)
 		}
 	}
+	return nil
 }

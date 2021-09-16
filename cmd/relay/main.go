@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"go-storj-solution/pkg/proxy"
 	"log"
 	"net"
@@ -16,9 +17,17 @@ func main() {
 
 	addr := os.Args[1]
 
+	if err := run(addr); err != nil {
+		fmt.Fprintf(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+}
+
+func run(addr string) error {
+
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Fatalln("failed to listen:", err)
+		return fmt.Errorf("net listen: %w", err)
 	}
 	defer l.Close()
 
@@ -31,7 +40,7 @@ func main() {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			log.Fatalln("failed to accept connection:", err)
+			return fmt.Errorf("accepting connection: %w", err)
 		}
 
 		go service.Onboard(conn)
