@@ -9,10 +9,10 @@ import (
 
 const (
 	// MsgSend identifiers sender
-	MsgSend Side = iota + 1
+	MsgSend Side = 'S'
 
 	// MsgRecv identifies receiver
-	MsgRecv
+	MsgRecv Side = 'R'
 )
 
 // Side of a transfer

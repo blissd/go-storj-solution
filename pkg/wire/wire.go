@@ -60,7 +60,7 @@ func (enc *frameEncoder) EncodeBytes(bs []byte) error {
 	if length > 254 {
 		return fmt.Errorf("wire.EncodeBytes: too long %v", length)
 	}
-	if _, err := enc.Write([]byte{byte(length + 1)}); err != nil {
+	if _, err := enc.Write([]byte{byte(length)}); err != nil {
 		return fmt.Errorf("wire.EncodeBytes: write length: %w", err)
 	}
 	if _, err := enc.Write(bs); err != nil {
@@ -95,7 +95,7 @@ func (dec *frameDecoder) DecodeBytes() ([]byte, error) {
 		return nil, fmt.Errorf("wire.DecodeBytes: bad length: %v", bs[0])
 	}
 
-	bs = make([]byte, length-1)
+	bs = make([]byte, length)
 
 	_, err := dec.Read(bs)
 	if err != nil {
@@ -109,10 +109,10 @@ func (dec *frameDecoder) DecodeByte() (byte, error) {
 	if err != nil {
 		return 0, fmt.Errorf("wire.DecodeByte: %w", err)
 	}
-	if bs[0] != 2 {
-		return 0, fmt.Errorf("wire.DecodeByte: bad length: %v", bs[0])
+	if len(bs) != 1 {
+		return 0, fmt.Errorf("wire.DecodeByte: bad length: %v", len(bs))
 	}
-	return bs[1], nil
+	return bs[0], nil
 }
 
 func (dec *frameDecoder) DecodeString() (string, error) {
