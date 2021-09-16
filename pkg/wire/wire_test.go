@@ -3,6 +3,8 @@ package wire
 import (
 	"bytes"
 	"encoding/binary"
+	"github.com/stretchr/testify/assert"
+	"reflect"
 	"testing"
 	"unsafe"
 )
@@ -144,6 +146,38 @@ func TestDecodeInt64(t *testing.T) {
 			if i != tt.i {
 				t.Fatalf("Expected i to be %v, got %v", tt.i, i)
 			}
+		})
+	}
+}
+
+func Test_frameEncoder_EncodeBytes(t *testing.T) {
+	type fields struct {
+		Writer bytes.Buffer
+	}
+	type args struct {
+		bs []byte
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+	}{
+		{"one byte", fields{}, args{[]byte{'a'}}, false},
+		{"two bytes", fields{}, args{[]byte{'a', 'b'}}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			enc := &frameEncoder{
+				Writer: &tt.fields.Writer,
+			}
+			if err := enc.EncodeBytes(tt.args.bs); (err != nil) != tt.wantErr {
+				t.Errorf("EncodeBytes() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			bs := tt.fields.Writer.Bytes()
+			assert.Equal(t, byte(len(tt.args.bs)+1), bs[0])
+			assert.True(t, reflect.DeepEqual(tt.args.bs, bs[1:]))
 		})
 	}
 }

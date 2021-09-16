@@ -10,6 +10,7 @@
 package wire
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -69,7 +70,7 @@ func (enc *frameEncoder) EncodeBytes(bs []byte) error {
 }
 
 func (enc *frameEncoder) EncodeByte(b byte) error {
-	return enc.EncodeBytes([]byte{2, b})
+	return enc.EncodeBytes([]byte{b})
 }
 
 func (enc *frameEncoder) EncodeString(s string) error {
@@ -77,13 +78,11 @@ func (enc *frameEncoder) EncodeString(s string) error {
 }
 
 func (enc *frameEncoder) EncodeInt64(i int64) error {
-	if _, err := enc.Write([]byte{byte(sizeOfInt64 + 1)}); err != nil {
-		return fmt.Errorf("wire.EncodeInt64: write length: %w", err)
-	}
-	if err := binary.Write(enc, binary.BigEndian, i); err != nil {
+	bs := &bytes.Buffer{}
+	if err := binary.Write(bs, binary.BigEndian, i); err != nil {
 		return fmt.Errorf("wire.EncodeInt64: %w", err)
 	}
-	return nil
+	return enc.EncodeBytes(bs.Bytes())
 }
 
 func (dec *frameDecoder) DecodeBytes() ([]byte, error) {
@@ -125,18 +124,17 @@ func (dec *frameDecoder) DecodeString() (string, error) {
 }
 
 func (dec *frameDecoder) DecodeInt64() (int64, error) {
-	bs := make([]byte, 1)
-	_, err := dec.Read(bs)
+	bs, err := dec.DecodeBytes()
 	if err != nil {
 		return 0, fmt.Errorf("wire.DecodeInt64: %w", err)
 	}
 
-	var i int64
-	if bs[0] != 1+byte(sizeOfInt64) {
-		return 0, fmt.Errorf("wire.DecodeInt64: bad length: %v", bs[0])
+	if len(bs) != sizeOfInt64 {
+		return 0, fmt.Errorf("wire.DecodeInt64: bad length: %v", len(bs))
 	}
 
-	if err := binary.Read(dec, binary.BigEndian, &i); err != nil {
+	var i int64
+	if err := binary.Read(bytes.NewReader(bs), binary.BigEndian, &i); err != nil {
 		return 0, fmt.Errorf("wire.DecodeInt64: %w", err)
 	}
 	return i, nil
