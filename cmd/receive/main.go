@@ -38,19 +38,20 @@ func run(addr string, secret string, dir string) error {
 	}
 	defer s.Close()
 
-	r, name, err := s.Recv(secret)
+	r, err := s.Recv(secret)
 	if err != nil {
 		return fmt.Errorf("starting receive: %w", err)
 	}
+	defer r.Body.Close()
 
-	filePath := path.Join(dir, name)
+	filePath := path.Join(dir, r.Name)
 	file, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("creating output file: %w", err)
 	}
 	defer file.Close()
 
-	if _, err := io.Copy(file, r); err != nil {
+	if _, err := io.Copy(file, r.Body); err != nil {
 		return fmt.Errorf("receiving file: %w", err)
 	}
 	return nil

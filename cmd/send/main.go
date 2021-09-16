@@ -35,11 +35,26 @@ func run(addr string, filePath string) error {
 	}
 	defer s.Close()
 
-	secret, errs := s.Send(file)
-	fmt.Println(secret)
+	info, err := file.Stat()
+	if err != nil {
+		log.Fatalln("stating file:", err)
+	}
+
+	request := &client.SendRequest{
+		Body:   file,
+		Name:   file.Name(),
+		Length: info.Size(),
+	}
+
+	response, err := s.Send(request)
+	if err != nil {
+		log.Fatalln("sending:", err)
+	}
+
+	fmt.Println(response.Secret)
 
 	select {
-	case err, gotError := <-errs:
+	case err, gotError := <-response.Errors:
 		if gotError {
 			log.Fatalln("failed sending file:", err)
 		}

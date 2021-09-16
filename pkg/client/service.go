@@ -5,7 +5,6 @@ import (
 	"go-storj-solution/pkg/wire"
 	"io"
 	"net"
-	"os"
 )
 
 const (
@@ -19,6 +18,27 @@ const (
 // Side of a transfer
 type Side byte
 
+type SendRequest struct {
+	// Body of file to send
+	Body io.Reader
+
+	// Name of file to send
+	Name string
+
+	// Length of file to send
+	Length int64
+}
+
+type SendResponse struct {
+	Secret string
+	Errors <-chan error
+}
+
+type RecvResponse struct {
+	Body io.ReadCloser
+	Name string
+}
+
 //Service for clients to send and receive files through the relay proxy
 type Service interface {
 	// Send sends files through the relay proxy.
@@ -26,12 +46,12 @@ type Service interface {
 	// to receive the file. The control channel is used to report errors and notify the
 	// caller that the file has been sent. If the channel closes and doesn't contain an error then
 	// the file was successfully sent. If an error occurred then it will be available on the channel.
-	Send(*os.File) (string, <-chan error)
+	Send(request *SendRequest) (*SendResponse, error)
 
 	// Recv receives files through the relay proxy. Files can only be received with
 	// the correct secret. If the secret is valid, then a reader to stream the file is returned
 	// and also a file name.
-	Recv(secret string) (io.Reader, string, error)
+	Recv(secret string) (*RecvResponse, error)
 
 	//Close closes network connection to relay proxy.
 	Close() error
@@ -57,25 +77,29 @@ func NewService(addr string) (Service, error) {
 	}, nil
 }
 
-func (s *service) Send(file *os.File) (string, <-chan error) {
-	errs := make(chan error, 1)
-
-	// format error message, send to control channel, and close channel
-	fail := func(msg string, err error) <-chan error {
-		errs <- fmt.Errorf("%v: %w", msg, err)
-		close(errs)
-		return errs
-	}
-
+func (s *service) Send(r *SendRequest) (*SendResponse, error) {
 	// Tell relay proxy we are the sender
 	if err := s.enc.EncodeByte(byte(MsgSend)); err != nil {
-		return "", fail("sending msg send byte", err)
+		return nil, fmt.Errorf("sending msg send byte: %w", err)
 	}
 
 	// Receive secret from relay proxy
 	secret, err := s.dec.DecodeString()
 	if err != nil {
-		return "", fail("receiving secret", err)
+		return nil, fmt.Errorf("receiving secret: %w", err)
+	}
+
+	errs := make(chan error, 1)
+
+	response := &SendResponse{
+		Secret: secret,
+		Errors: errs,
+	}
+
+	// format error message, send to control channel, and close channel
+	fail := func(msg string, err error) {
+		errs <- fmt.Errorf("%v: %w", msg, err)
+		close(errs)
 	}
 
 	go func() {
@@ -86,58 +110,51 @@ func (s *service) Send(file *os.File) (string, <-chan error) {
 		}
 
 		// Send file name
-		if err := s.enc.EncodeString(file.Name()); err != nil {
+		if err := s.enc.EncodeString(r.Name); err != nil {
 			fail("sending file name", err)
 			return
 		}
 
-		// Send file length
-		info, err := file.Stat()
-		if err != nil {
-			fail("getting file info", err)
-			return
-		}
-
-		if err := s.enc.EncodeInt64(info.Size()); err != nil {
+		if err := s.enc.EncodeInt64(r.Length); err != nil {
 			fail("sending length", err)
 			return
 		}
 
-		written, err := io.Copy(s.con, file)
+		written, err := io.Copy(s.con, r.Body)
 		if err != nil {
 			fail("sending file", err)
 			return
 		}
-		if written != info.Size() {
+		if written != r.Length {
 			fail(fmt.Sprintf("unexpected length [%v]", written), nil)
 			return
 		}
 		close(errs) // signal successful copy
 	}()
 
-	return secret, errs
+	return response, nil
 }
 
-func (s *service) Recv(secret string) (io.Reader, string, error) {
+func (s *service) Recv(secret string) (*RecvResponse, error) {
 	if err := s.enc.EncodeByte(byte(MsgRecv)); err != nil {
-		return nil, "", fmt.Errorf("sending msg recv byte: %w", err)
+		return nil, fmt.Errorf("sending msg recv byte: %w", err)
 	}
 
 	// send secret
 	if err := s.enc.EncodeString(secret); err != nil {
-		return nil, "", fmt.Errorf("failed sending secret: %w", err)
+		return nil, fmt.Errorf("sending secret: %w", err)
 	}
 
 	// receive file name
 	name, err := s.dec.DecodeString()
 	if err != nil {
-		return nil, "", fmt.Errorf("failed receiving file name: %w", err)
+		return nil, fmt.Errorf("receiving file name: %w", err)
 	}
 
 	// Receive file length
 	length, err := s.dec.DecodeInt64()
 	if err != nil {
-		return nil, "", fmt.Errorf("failed receiving file length: %w", err)
+		return nil, fmt.Errorf("receiving file length: %w", err)
 	}
 
 	pr, pw := io.Pipe()
@@ -153,7 +170,12 @@ func (s *service) Recv(secret string) (io.Reader, string, error) {
 		}
 	}()
 
-	return pr, name, nil
+	response := &RecvResponse{
+		Body: pr,
+		Name: name,
+	}
+
+	return response, nil
 }
 
 func (s *service) Close() error {
