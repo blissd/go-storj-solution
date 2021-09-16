@@ -60,8 +60,8 @@ type Service interface {
 //service client service
 type service struct {
 	con net.Conn
-	enc wire.FrameEncoder
-	dec wire.FrameDecoder
+	enc wire.Encoder
+	dec wire.Decoder
 }
 
 //NewService creates a new client service

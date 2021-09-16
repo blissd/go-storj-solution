@@ -168,7 +168,7 @@ func Test_frameEncoder_EncodeBytes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			enc := &frameEncoder{
+			enc := &encoder{
 				Writer: &tt.fields.Writer,
 			}
 			if err := enc.EncodeBytes(tt.args.bs); (err != nil) != tt.wantErr {
