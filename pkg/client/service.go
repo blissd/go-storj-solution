@@ -10,11 +10,14 @@ import (
 
 const (
 	// MsgSend identifiers sender
-	MsgSend byte = iota + 1
+	MsgSend Side = iota + 1
 
 	// MsgRecv identifies receiver
 	MsgRecv
 )
+
+// Side of a transfer
+type Side byte
 
 //Service for clients to send and receive files through the relay proxy
 type Service interface {
@@ -65,7 +68,7 @@ func (s *service) Send(file *os.File) (string, <-chan error) {
 	}
 
 	// Tell relay proxy we are the sender
-	if err := s.enc.EncodeByte(MsgSend); err != nil {
+	if err := s.enc.EncodeByte(byte(MsgSend)); err != nil {
 		return "", fail("sending msg send byte", err)
 	}
 
@@ -77,7 +80,7 @@ func (s *service) Send(file *os.File) (string, <-chan error) {
 
 	go func() {
 		// Wait for receiver to join relay proxy
-		if b, err := s.dec.DecodeByte(); b != MsgRecv || err != nil {
+		if b, err := s.dec.DecodeByte(); b != byte(MsgRecv) || err != nil {
 			fail(fmt.Sprintf("bad receiver [%v]", b), err)
 			return
 		}
@@ -116,7 +119,7 @@ func (s *service) Send(file *os.File) (string, <-chan error) {
 }
 
 func (s *service) Recv(secret string) (io.Reader, string, error) {
-	if err := s.enc.EncodeByte(MsgRecv); err != nil {
+	if err := s.enc.EncodeByte(byte(MsgRecv)); err != nil {
 		return nil, "", fmt.Errorf("sending msg recv byte: %w", err)
 	}
 

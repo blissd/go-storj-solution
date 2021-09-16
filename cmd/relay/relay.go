@@ -11,10 +11,12 @@ import (
 
 // a sender or receiver connecting to the Relay
 type clientInfo struct {
-	// connection to client
+	// conn is connection to client
 	conn net.Conn
-	// send or recv
-	side byte
+
+	// side of the transfer, either sender or receiver
+	side client.Side
+
 	// secret identifies transfer
 	secret string
 }
@@ -38,7 +40,7 @@ func (t *transfer) run(r *Relay) {
 	// Send "receiver is ready" message to sender so that the
 	// sender can start sending bytes.
 	enc := wire.NewEncoder(t.send)
-	if err := enc.EncodeByte(client.MsgRecv); err != nil {
+	if err := enc.EncodeByte(byte(client.MsgRecv)); err != nil {
 		log.Println("send recv ready failed:", err)
 		return
 	}
@@ -88,11 +90,17 @@ func (r *Relay) Run() {
 // Expected to be called from a go routine.
 func (r *Relay) Onboard(conn net.Conn) {
 	dec := wire.NewDecoder(conn)
-	clientType, err := dec.DecodeByte()
-	if err != nil {
-		log.Println("failed reading first byte:", err)
-		_ = conn.Close()
-		return
+
+	var clientType client.Side
+	{
+		b, err := dec.DecodeByte()
+		if err != nil {
+			log.Println("failed reading first byte:", err)
+			_ = conn.Close()
+			return
+		}
+
+		clientType = client.Side(b)
 	}
 
 	log.Println("onboarding for", clientType)
@@ -105,8 +113,7 @@ func (r *Relay) Onboard(conn net.Conn) {
 		log.Println("sending Secret")
 		secret = r.secrets.Secret()
 		log.Println("generated Secret is", secret)
-		err = wire.NewEncoder(conn).EncodeString(secret)
-		if err != nil {
+		if err := wire.NewEncoder(conn).EncodeString(secret); err != nil {
 			log.Println("send Secret in onboard:", err)
 			_ = conn.Close()
 			return
@@ -114,8 +121,8 @@ func (r *Relay) Onboard(conn net.Conn) {
 	case client.MsgRecv:
 		// Onboarding a receiver so read the secret for the transfer
 		log.Println("receiving Secret")
-		secret, err = dec.DecodeString()
-		if err != nil {
+		var err error
+		if secret, err = dec.DecodeString(); err != nil {
 			log.Println("recv Secret in onboard:", err)
 			_ = conn.Close()
 			return
