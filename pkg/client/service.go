@@ -35,7 +35,7 @@ type SendResponse struct {
 }
 
 type RecvResponse struct {
-	Body io.ReadCloser
+	Body io.Reader
 	Name string
 }
 
@@ -111,18 +111,9 @@ func (s *service) Send(r *SendRequest) (*SendResponse, error) {
 			return
 		}
 
-		if err := s.enc.EncodeInt64(r.Length); err != nil {
-			errs <- fmt.Errorf("sending length: %w", err)
-			return
-		}
-
-		written, err := io.Copy(s.con, r.Body)
-		if err != nil {
-			errs <- fmt.Errorf("sending file: %w", err)
-			return
-		}
-		if written != r.Length {
-			errs <- fmt.Errorf("unexpected length [%v]", written)
+		// Send file body
+		if err := s.enc.EncodeReader(r.Body, r.Length); err != nil {
+			errs <- fmt.Errorf("sending body: %w", err)
 			return
 		}
 	}()
@@ -146,27 +137,13 @@ func (s *service) Recv(secret string) (*RecvResponse, error) {
 		return nil, fmt.Errorf("receiving file name: %w", err)
 	}
 
-	// Receive file length
-	length, err := s.dec.DecodeInt64()
+	r, err := s.dec.DecodeReader()
 	if err != nil {
-		return nil, fmt.Errorf("receiving file length: %w", err)
+		return nil, fmt.Errorf("receiving body: %w", err)
 	}
 
-	pr, pw := io.Pipe()
-	go func() {
-		copyN, err := io.Copy(pw, s.con)
-		if err != nil {
-			pw.CloseWithError(err)
-			return
-		} else if copyN != length {
-			pw.CloseWithError(fmt.Errorf("unexpected file length: %d", copyN))
-		} else {
-			pw.Close()
-		}
-	}()
-
 	response := &RecvResponse{
-		Body: pr,
+		Body: r,
 		Name: name,
 	}
 

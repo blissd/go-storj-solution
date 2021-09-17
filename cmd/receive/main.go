@@ -42,7 +42,6 @@ func run(addr string, secret string, dir string) error {
 	if err != nil {
 		return fmt.Errorf("starting receive: %w", err)
 	}
-	defer r.Body.Close()
 
 	filePath := path.Join(dir, r.Name)
 	file, err := os.Create(filePath)

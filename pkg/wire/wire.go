@@ -25,6 +25,7 @@ type Encoder interface {
 	EncodeByte(b byte) error
 	EncodeString(s string) error
 	EncodeInt64(i int64) error
+	EncodeReader(r io.Reader, length int64) error
 }
 
 // Decoder Decodes data types from an underlying io.Reader
@@ -33,6 +34,7 @@ type Decoder interface {
 	DecodeByte() (byte, error)
 	DecodeString() (string, error)
 	DecodeInt64() (int64, error)
+	DecodeReader() (io.Reader, error)
 }
 
 type encoder struct {
@@ -83,6 +85,27 @@ func (enc *encoder) EncodeInt64(i int64) error {
 		return fmt.Errorf("wire.EncodeInt64: %w", err)
 	}
 	return enc.EncodeBytes(bs.Bytes())
+}
+
+func (enc *encoder) EncodeReader(r io.Reader, length int64) error {
+	//length, err := r.Seek(0, io.SeekEnd)
+	//if err != nil {
+	//	return fmt.Errorf("seek end: %w", err)
+	//}
+	//
+	//_, err = r.Seek(0, io.SeekStart)
+	//if err != nil {
+	//	return fmt.Errorf("seek start: %w", err)
+	//}
+
+	if err := enc.EncodeInt64(length); err != nil {
+		return fmt.Errorf("wire.EncodeReader: %w", err)
+	}
+	_, err := io.CopyN(enc, r, length)
+	if err != nil {
+		return fmt.Errorf("wire.EncodeReader: %w", err)
+	}
+	return nil
 }
 
 func (dec *decoder) DecodeBytes() ([]byte, error) {
@@ -138,4 +161,12 @@ func (dec *decoder) DecodeInt64() (int64, error) {
 		return 0, fmt.Errorf("wire.DecodeInt64: %w", err)
 	}
 	return i, nil
+}
+
+func (dec *decoder) DecodeReader() (io.Reader, error) {
+	length, err := dec.DecodeInt64()
+	if err != nil {
+		return nil, fmt.Errorf("wire.DecodeReader: %w", err)
+	}
+	return io.LimitReader(dec, length), nil
 }
