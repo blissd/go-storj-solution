@@ -19,21 +19,21 @@ import (
 // sizeOfInt64 size of int64 in bytes
 const sizeOfInt64 = 8
 
+const byteType = 'b'   // single byte
+const streamType = 'B' // arbitrary stream of bytes
+const stringType = 's' // short string of up to 256 bytes
+
 // Encoder encodes data types to an underlying io.Writer
 type Encoder interface {
-	EncodeBytes(bs []byte) error
 	EncodeByte(b byte) error
 	EncodeString(s string) error
-	EncodeInt64(i int64) error
 	EncodeReader(r io.Reader, length int64) error
 }
 
 // Decoder Decodes data types from an underlying io.Reader
 type Decoder interface {
-	DecodeBytes() ([]byte, error)
 	DecodeByte() (byte, error)
 	DecodeString() (string, error)
-	DecodeInt64() (int64, error)
 	DecodeReader() (io.Reader, error)
 }
 
@@ -57,116 +57,85 @@ func NewDecoder(r io.Reader) Decoder {
 	}
 }
 
-func (enc *encoder) EncodeBytes(bs []byte) error {
-	length := len(bs)
-	if length > 254 {
-		return fmt.Errorf("wire.EncodeBytes: too long %v", length)
-	}
-	if _, err := enc.Write([]byte{byte(length)}); err != nil {
-		return fmt.Errorf("wire.EncodeBytes: write length: %w", err)
-	}
-	if _, err := enc.Write(bs); err != nil {
-		return fmt.Errorf("wire.EncodeBytes: write payload: %w", err)
+func (enc *encoder) EncodeByte(b byte) error {
+	if _, err := enc.Write([]byte{byte(byteType), b}); err != nil {
+		return fmt.Errorf("wire.EncodeByte: write length: %w", err)
 	}
 	return nil
-}
-
-func (enc *encoder) EncodeByte(b byte) error {
-	return enc.EncodeBytes([]byte{b})
 }
 
 func (enc *encoder) EncodeString(s string) error {
-	return enc.EncodeBytes([]byte(s))
-}
-
-func (enc *encoder) EncodeInt64(i int64) error {
-	bs := &bytes.Buffer{}
-	if err := binary.Write(bs, binary.BigEndian, i); err != nil {
-		return fmt.Errorf("wire.EncodeInt64: %w", err)
+	length := len([]byte(s))
+	if length > 255 {
+		return fmt.Errorf("wire.EncodeString: too long %v", length)
 	}
-	return enc.EncodeBytes(bs.Bytes())
+	bs := bytes.Buffer{}
+	bs.WriteByte(byte(stringType))
+	bs.WriteByte(byte(length))
+	bs.WriteString(s)
+	if _, err := enc.Write(bs.Bytes()); err != nil {
+		return fmt.Errorf("wire.EncodeString: %w", err)
+	}
+	return nil
 }
 
 func (enc *encoder) EncodeReader(r io.Reader, length int64) error {
-	//length, err := r.Seek(0, io.SeekEnd)
-	//if err != nil {
-	//	return fmt.Errorf("seek end: %w", err)
-	//}
-	//
-	//_, err = r.Seek(0, io.SeekStart)
-	//if err != nil {
-	//	return fmt.Errorf("seek start: %w", err)
-	//}
-
-	if err := enc.EncodeInt64(length); err != nil {
+	if _, err := enc.Write([]byte{streamType}); err != nil {
 		return fmt.Errorf("wire.EncodeReader: %w", err)
 	}
-	_, err := io.CopyN(enc, r, length)
-	if err != nil {
+	if err := binary.Write(enc, binary.BigEndian, length); err != nil {
+		return fmt.Errorf("wire.EncodeReader: %w", err)
+	}
+	if _, err := io.CopyN(enc, r, length); err != nil {
 		return fmt.Errorf("wire.EncodeReader: %w", err)
 	}
 	return nil
 }
 
-func (dec *decoder) DecodeBytes() ([]byte, error) {
-	bs := make([]byte, 1)
-	if _, err := dec.Read(bs); err != nil {
-		return nil, fmt.Errorf("wire.DecodeBytes length: %w", err)
-	}
-	length := bs[0]
-	if length < 1 {
-		return nil, fmt.Errorf("wire.DecodeBytes: bad length: %v", bs[0])
-	}
-
-	bs = make([]byte, length)
-
-	_, err := dec.Read(bs)
-	if err != nil {
-		return nil, fmt.Errorf("wire.DecodeBytes: read payload: %w", err)
-	}
-	return bs, nil
-}
-
 func (dec *decoder) DecodeByte() (byte, error) {
-	bs, err := dec.DecodeBytes()
+	bs := []byte{0, 0}
+	_, err := io.ReadFull(dec, bs)
 	if err != nil {
 		return 0, fmt.Errorf("wire.DecodeByte: %w", err)
 	}
-	if len(bs) != 1 {
-		return 0, fmt.Errorf("wire.DecodeByte: bad length: %v", len(bs))
+	if bs[0] != byteType {
+		return 0, fmt.Errorf("wire.DecodeByte: bad type: %v", bs[0])
 	}
-	return bs[0], nil
+	return bs[1], nil
 }
 
 func (dec *decoder) DecodeString() (string, error) {
-	bs, err := dec.DecodeBytes()
+	bs := []byte{0, 1}
+	_, err := io.ReadFull(dec, bs)
+	if err != nil {
+		return "", fmt.Errorf("wire.DecodeString: %w", err)
+	}
+	if bs[0] != stringType {
+		return "", fmt.Errorf("wire.DecodeString: bad type: %v", bs[0])
+	}
+	length := bs[1]
+	bs = make([]byte, length)
+	_, err = io.ReadFull(dec, bs)
 	if err != nil {
 		return "", fmt.Errorf("wire.DecodeString: %w", err)
 	}
 	return string(bs), nil
 }
 
-func (dec *decoder) DecodeInt64() (int64, error) {
-	bs, err := dec.DecodeBytes()
-	if err != nil {
-		return 0, fmt.Errorf("wire.DecodeInt64: %w", err)
-	}
-
-	if len(bs) != sizeOfInt64 {
-		return 0, fmt.Errorf("wire.DecodeInt64: bad length: %v", len(bs))
-	}
-
-	var i int64
-	if err := binary.Read(bytes.NewReader(bs), binary.BigEndian, &i); err != nil {
-		return 0, fmt.Errorf("wire.DecodeInt64: %w", err)
-	}
-	return i, nil
-}
-
 func (dec *decoder) DecodeReader() (io.Reader, error) {
-	length, err := dec.DecodeInt64()
+	bs := []byte{0}
+	_, err := io.ReadFull(dec, bs)
 	if err != nil {
 		return nil, fmt.Errorf("wire.DecodeReader: %w", err)
 	}
+	if bs[0] != streamType {
+		return nil, fmt.Errorf("wire.DecodeReader bad type: %v", bs[0])
+	}
+
+	var length int64
+	if err := binary.Read(dec, binary.BigEndian, &length); err != nil {
+		return nil, fmt.Errorf("wire.DecodeReader: %w", err)
+	}
+
 	return io.LimitReader(dec, length), nil
 }
