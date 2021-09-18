@@ -1,12 +1,3 @@
-// Package wire proves protocol framing functions.
-// The data types, byte, string, and int64 can be encoded
-// into frames suitable for sending across a network connection.
-// The frame format is as follows:
-// byte 0 - frame length, max 255 bytes
-// byte 1 - frame id, effectively the type of frame.
-// byte 2+ - frame payload, up to 253 bytes
-// Frames don't encode any type information It is up to the caller to
-// understand what type correlates to what frame.
 package wire
 
 import (
