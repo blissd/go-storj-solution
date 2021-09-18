@@ -1,4 +1,4 @@
-.PHONY: send receive relay
+.PHONY: send receive relay clean
 
 build: send receive relay
 
@@ -13,3 +13,7 @@ relay:
 
 test:
 	CGO_ENABLED=0 go test ./...
+
+clean:
+	go clean --cache
+	rm -f send receive relay
