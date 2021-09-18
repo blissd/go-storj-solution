@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/go-kit/log"
 	"go-storj-solution/pkg/proxy"
-	"log"
 	"net"
 	"os"
 	"time"
@@ -12,7 +12,8 @@ import (
 func main() {
 
 	if len(os.Args) != 2 {
-		log.Fatalln("Usage: Service :<port>")
+		fmt.Fprintln(os.Stderr, "Usage: %v :<port>", os.Args[0])
+		os.Exit(1)
 	}
 
 	addr := os.Args[1]
@@ -31,9 +32,13 @@ func run(addr string) error {
 	}
 	defer l.Close()
 
+	w := log.NewSyncWriter(os.Stderr)
+	logger := log.NewLogfmtLogger(w)
+	logger = log.With(logger, "ts", log.DefaultTimestampUTC, "caller", log.DefaultCaller)
+
 	//secrets := NewFixedSecret("abc123")
 	secrets := proxy.NewRandomSecrets(6, time.Now().UnixNano())
-	service := proxy.New(secrets)
+	service := proxy.New(secrets, logger)
 
 	go service.Run()
 

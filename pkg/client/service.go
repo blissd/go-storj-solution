@@ -18,6 +18,17 @@ const (
 // Side of a transfer
 type Side byte
 
+func (s Side) String() string {
+	switch s {
+	case MsgSend:
+		return "sender"
+	case MsgRecv:
+		return "receiver"
+	default:
+		return fmt.Sprintf("unknown [%v]", byte(s))
+	}
+}
+
 type SendRequest struct {
 	// Body of file to send
 	Body io.Reader

@@ -1,10 +1,10 @@
 package proxy
 
 import (
+	"github.com/go-kit/log"
 	"go-storj-solution/pkg/client"
 	"go-storj-solution/pkg/wire"
 	"io"
-	"log"
 	"net"
 )
 
@@ -19,13 +19,16 @@ type Service struct {
 	// action to add or remove transfers.
 	// `Service` is effectively an actor.
 	action chan func()
+
+	logger log.Logger
 }
 
-func New(secrets Secrets) *Service {
+func New(secrets Secrets, logger log.Logger) *Service {
 	return &Service{
 		secrets:   secrets,
 		transfers: make(map[string]*transfer),
 		action:    make(chan func()),
+		logger:    logger,
 	}
 }
 
@@ -51,7 +54,7 @@ func (r *Service) Onboard(conn net.Conn) {
 	{
 		b, err := dec.DecodeByte()
 		if err != nil {
-			log.Println("failed reading first byte:", err)
+			r.logger.Log("msg", "failed reading first byte", "err", err)
 			_ = conn.Close()
 			return
 		}
@@ -59,32 +62,29 @@ func (r *Service) Onboard(conn net.Conn) {
 		side = client.Side(b)
 	}
 
-	log.Println("onboarding for", side)
+	r.logger.Log("msg", "onboarding", "side", side)
 
 	var secret string
 
 	switch side {
 	case client.MsgSend:
 		// Onboarding a sender so generate and send secret for this transfer
-		log.Println("sending Secret")
 		secret = r.secrets.Secret()
-		log.Println("generated Secret is", secret)
 		if err := wire.NewEncoder(conn).EncodeString(secret); err != nil {
-			log.Println("send Secret in onboard:", err)
+			r.logger.Log("msg", "failed sending secret", "err", err)
 			_ = conn.Close()
 			return
 		}
 	case client.MsgRecv:
 		// Onboarding a receiver so read the secret for the transfer
-		log.Println("receiving Secret")
 		var err error
 		if secret, err = dec.DecodeString(); err != nil {
-			log.Println("recv Secret in onboard:", err)
+			r.logger.Log("msg", "failed receiving secret", "err", err)
 			_ = conn.Close()
 			return
 		}
 	default:
-		log.Println("invalid client type in onboard:", side)
+		r.logger.Log("msg", "invalid client side", "side", side)
 		_ = conn.Close()
 		return
 	}
@@ -102,21 +102,20 @@ func (r *Service) Onboard(conn net.Conn) {
 // If a receiver has an unknown Secret, then their connection is closed.
 func (r *Service) join(ts transferSide) {
 	r.action <- func() {
-		log.Println("join for client:", ts.secret)
 		switch ts.side {
 		case client.MsgSend:
-			log.Println("joining sender for:", ts.secret)
+			r.logger.Log("msg", "joining", "side", ts.side, "secret", ts.secret)
 			if _, ok := r.transfers[ts.secret]; ok {
 				// should be very unlikely as the Service server generates Secrets!
-				log.Println("skipping duplicate send client:", ts.secret)
+				r.logger.Log("msg", "duplicate secret", "secret", ts.secret)
 				_ = ts.conn.Close()
 				return
 			}
 			r.transfers[ts.secret] = &transfer{secret: ts.secret, send: ts.conn}
 		case client.MsgRecv:
-			log.Println("joining receiver for", ts.secret)
+			r.logger.Log("msg", "joining", "side", ts.side, "secret", ts.secret)
 			if _, ok := r.transfers[ts.secret]; !ok {
-				log.Println("skipping recv client because no active tx:", ts.secret)
+				r.logger.Log("msg", "receiver provided unknown secret", "secret", ts.secret)
 				_ = ts.conn.Close()
 				return
 			}
@@ -126,7 +125,7 @@ func (r *Service) join(ts transferSide) {
 			// sender and receiver are connected so now start relaying traffic
 			go t.run(r)
 		default:
-			log.Println("skipping client because side is invalid:", ts.side)
+			r.logger.Log("msg", "failed join because client side is invalid", "side", ts.side)
 			_ = ts.conn.Close()
 		}
 	}
@@ -135,7 +134,7 @@ func (r *Service) join(ts transferSide) {
 // cleans up after ending a transfer for any reason
 func (r *Service) close(secret string) {
 	r.action <- func() {
-		log.Println("closing:", secret)
+		r.logger.Log("msg", "closing", "secret", secret)
 		defer delete(r.transfers, secret)
 		if t, ok := r.transfers[secret]; ok {
 			if t.send != nil {
@@ -180,13 +179,21 @@ func (t *transfer) run(r *Service) {
 	// sender can start sending bytes.
 	enc := wire.NewEncoder(t.send)
 	if err := enc.EncodeByte(byte(client.MsgRecv)); err != nil {
-		log.Println("send recv ready failed:", err)
+		r.logger.Log(
+			"msg", "notifying sender of receiver failed",
+			"secret", t.secret,
+			"err", err,
+		)
 		return
 	}
 
 	// Now just pipe from sender to receiver
 	// Note that the Service server doesn't care what messages are passed.
 	if _, err := io.Copy(t.recv, t.send); err != nil {
-		log.Println("tx.run for:", t.secret, " failed with:", err)
+		r.logger.Log(
+			"msg", "notifying sender of receiver failed",
+			"secret", t.secret,
+			"err", err,
+		)
 	}
 }
