@@ -16,12 +16,9 @@ import (
 	"io"
 )
 
-// sizeOfInt64 size of int64 in bytes
-const sizeOfInt64 = 8
-
-const byteType = 'b'   // single byte
-const streamType = 'B' // arbitrary stream of bytes
-const stringType = 's' // short string of up to 256 bytes
+const byteType byte = 'b'   // single byte
+const streamType byte = 'B' // arbitrary stream of bytes
+const stringType byte = 's' // short string of up to 256 bytes
 
 // Encoder encodes data types to an underlying io.Writer
 type Encoder interface {
@@ -58,7 +55,7 @@ func NewDecoder(r io.Reader) Decoder {
 }
 
 func (enc *encoder) EncodeByte(b byte) error {
-	if _, err := enc.Write([]byte{byte(byteType), b}); err != nil {
+	if _, err := enc.Write([]byte{byteType, b}); err != nil {
 		return fmt.Errorf("wire.EncodeByte: write length: %w", err)
 	}
 	return nil
@@ -70,7 +67,7 @@ func (enc *encoder) EncodeString(s string) error {
 		return fmt.Errorf("wire.EncodeString: too long %v", length)
 	}
 	bs := bytes.Buffer{}
-	bs.WriteByte(byte(stringType))
+	bs.WriteByte(stringType)
 	bs.WriteByte(byte(length))
 	bs.WriteString(s)
 	if _, err := enc.Write(bs.Bytes()); err != nil {
