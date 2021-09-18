@@ -67,8 +67,6 @@ func Test_service_Send(t *testing.T) {
 	// read body
 	bs := make([]byte, len(body)+1+8) // +1 for type +8 for size of int64
 	io.ReadFull(conn, bs)
-	fmt.Println(bs)
-	fmt.Println(string(bs))
 
 	r := bytes.NewReader(bs)
 	if b, _ := r.ReadByte(); b != byte('B') {
