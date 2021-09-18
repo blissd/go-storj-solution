@@ -47,7 +47,7 @@ func NewDecoder(r io.Reader) Decoder {
 
 func (enc *encoder) EncodeByte(b byte) error {
 	if _, err := enc.Write([]byte{byteType, b}); err != nil {
-		return fmt.Errorf("wire.EncodeByte: write length: %w", err)
+		return fmt.Errorf("wire.EncodeByte: %w", err)
 	}
 	return nil
 }
@@ -93,7 +93,7 @@ func (dec *decoder) DecodeByte() (byte, error) {
 }
 
 func (dec *decoder) DecodeString() (string, error) {
-	bs := []byte{0, 1}
+	bs := []byte{0, 0}
 	_, err := io.ReadFull(dec, bs)
 	if err != nil {
 		return "", fmt.Errorf("wire.DecodeString: %w", err)
