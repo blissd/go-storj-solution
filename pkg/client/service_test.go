@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io"
 	"math/rand"
 	"net"
@@ -79,4 +80,56 @@ func Test_service_Send(t *testing.T) {
 	b := &strings.Builder{}
 	io.Copy(b, r)
 	assert.Equal(t, body, b.String())
+}
+
+func Test_service_Recv(t *testing.T) {
+
+	port := rand.Intn(1000) + 9000
+	addr := fmt.Sprintf(":%d", port)
+	l, err := net.Listen("tcp", addr)
+
+	assert.NoError(t, err)
+	defer l.Close()
+
+	s, err := NewService(addr)
+	assert.NoError(t, err)
+
+	secret := "foobar"
+
+	responsec := make(chan *RecvResponse)
+	go func() {
+		r, err := s.Recv(secret)
+		assert.NoError(t, err)
+		responsec <- r
+	}()
+
+	conn, err := l.Accept()
+	assert.NoError(t, err)
+	conn.SetDeadline(time.Now().Add(1 * time.Second))
+
+	side := []byte{0, 0}
+	io.ReadFull(conn, side)
+	assert.Equal(t, byte('b'), side[0])
+	assert.Equal(t, MsgRecv, Side(side[1]))
+
+	bs := []byte{0, 0}
+	io.ReadFull(conn, bs)
+	require.Equal(t, byte('s'), bs[0])
+	require.Equal(t, len(secret), int(bs[1]))
+
+	fileName := []byte("file.txt")
+	conn.Write([]byte{'s', byte(len(fileName))})
+	conn.Write(fileName)
+
+	body := []byte("i like cheese")
+	conn.Write([]byte{'B', 0, 0, 0, 0, 0, 0, 0, byte(len(body))})
+	conn.Write(body)
+
+	response := <-responsec
+	require.Equal(t, string(fileName), response.Name)
+
+	bs = make([]byte, len(body))
+	_, err = response.Body.Read(bs)
+	require.NoError(t, err)
+	require.Equal(t, body, bs)
 }
