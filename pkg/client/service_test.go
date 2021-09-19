@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go-storj-solution/pkg/wire"
 	"io"
 	"math/rand"
 	"net"
@@ -20,11 +20,13 @@ func Test_service_Send(t *testing.T) {
 	addr := fmt.Sprintf(":%d", port)
 	l, err := net.Listen("tcp", addr)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer l.Close()
 
-	s, err := NewService(addr)
-	assert.NoError(t, err)
+	serverCon, err := net.Dial("tcp", addr)
+	require.NoError(t, err)
+
+	s := NewService(wire.NewEncoder(serverCon), wire.NewDecoder(serverCon))
 
 	body := "test body"
 
@@ -36,30 +38,30 @@ func Test_service_Send(t *testing.T) {
 	responsec := make(chan *SendResponse)
 	go func() {
 		r, err := s.Send(request)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		responsec <- r
 	}()
 
 	conn, err := l.Accept()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	conn.SetDeadline(time.Now().Add(1 * time.Second))
 
 	side := []byte{0, 0}
 	io.ReadFull(conn, side)
-	assert.Equal(t, byte('b'), side[0])
-	assert.Equal(t, MsgSend, Side(side[1]))
+	require.Equal(t, byte('b'), side[0])
+	require.Equal(t, MsgSend, Side(side[1]))
 
 	conn.Write([]byte{'s', 3, 'a', 'b', 'c'})
 	response := <-responsec
-	assert.Equal(t, "abc", response.Secret)
+	require.Equal(t, "abc", response.Secret)
 
 	conn.Write([]byte{'b', byte(MsgRecv)}) // indicates receiver is ready
 
 	// read name
 	name := make([]byte, len(request.Name)+2) // 1 for header 1 for length
 	io.ReadFull(conn, name)
-	assert.Equal(t, byte('s'), name[0])
-	assert.Equal(t, byte(len(request.Name)), name[1])
+	require.Equal(t, byte('s'), name[0])
+	require.Equal(t, byte(len(request.Name)), name[1])
 
 	if request.Name != string(name[2:]) {
 		t.Fatalf("want %v, got %v", request.Name, string(name[2:]))
@@ -75,11 +77,11 @@ func Test_service_Send(t *testing.T) {
 	}
 	var length int64
 	binary.Read(r, binary.BigEndian, &length)
-	assert.Equal(t, int64(len(body)), length)
+	require.Equal(t, int64(len(body)), length)
 
 	b := &strings.Builder{}
 	io.Copy(b, r)
-	assert.Equal(t, body, b.String())
+	require.Equal(t, body, b.String())
 }
 
 func Test_service_Recv(t *testing.T) {
@@ -87,30 +89,31 @@ func Test_service_Recv(t *testing.T) {
 	port := rand.Intn(1000) + 9000
 	addr := fmt.Sprintf(":%d", port)
 	l, err := net.Listen("tcp", addr)
-
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer l.Close()
 
-	s, err := NewService(addr)
-	assert.NoError(t, err)
+	serverCon, err := net.Dial("tcp", addr)
+	require.NoError(t, err)
+
+	s := NewService(wire.NewEncoder(serverCon), wire.NewDecoder(serverCon))
 
 	secret := "foobar"
 
 	responsec := make(chan *RecvResponse)
 	go func() {
 		r, err := s.Recv(secret)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		responsec <- r
 	}()
 
 	conn, err := l.Accept()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	conn.SetDeadline(time.Now().Add(1 * time.Second))
 
 	side := []byte{0, 0}
 	io.ReadFull(conn, side)
-	assert.Equal(t, byte('b'), side[0])
-	assert.Equal(t, MsgRecv, Side(side[1]))
+	require.Equal(t, byte('b'), side[0])
+	require.Equal(t, MsgRecv, Side(side[1]))
 
 	bs := []byte{0, 0}
 	io.ReadFull(conn, bs)

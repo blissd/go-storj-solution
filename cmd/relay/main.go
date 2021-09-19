@@ -12,7 +12,7 @@ import (
 func main() {
 
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "Usage: %v :<port>", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %v :<port>", os.Args[0])
 		os.Exit(1)
 	}
 

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"go-storj-solution/pkg/wire"
 	"io"
-	"net"
 )
 
 const (
@@ -63,29 +62,20 @@ type Service interface {
 	// the correct secret. If the secret is valid, then a reader to stream the file is returned
 	// and also a file name.
 	Recv(secret string) (*RecvResponse, error)
-
-	//Close closes network connection to relay proxy.
-	Close() error
 }
 
 //service client service
 type service struct {
-	con net.Conn
 	enc wire.Encoder
 	dec wire.Decoder
 }
 
 //NewService creates a new client service
-func NewService(addr string) (Service, error) {
-	con, err := net.Dial("tcp", addr)
-	if err != nil {
-		return nil, fmt.Errorf("new service: %w", err)
-	}
+func NewService(enc wire.Encoder, dec wire.Decoder) Service {
 	return &service{
-		con: con,
-		enc: wire.NewEncoder(con),
-		dec: wire.NewDecoder(con),
-	}, nil
+		enc: enc,
+		dec: dec,
+	}
 }
 
 func (s *service) Send(r *SendRequest) (*SendResponse, error) {
@@ -159,8 +149,4 @@ func (s *service) Recv(secret string) (*RecvResponse, error) {
 	}
 
 	return response, nil
-}
-
-func (s *service) Close() error {
-	return s.con.Close()
 }

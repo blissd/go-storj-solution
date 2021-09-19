@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"go-storj-solution/pkg/client"
+	"go-storj-solution/pkg/wire"
 	"io"
 	"log"
+	"net"
 	"os"
 	"path"
 )
@@ -32,11 +34,13 @@ func run(addr string, secret string, dir string) error {
 		return errors.New("no such directory")
 	}
 
-	s, err := client.NewService(addr)
+	con, err := net.Dial("tcp", addr)
 	if err != nil {
-		return fmt.Errorf("creating service: %w", err)
+		return fmt.Errorf("new service: %w", err)
 	}
-	defer s.Close()
+	defer con.Close()
+
+	s := client.NewService(wire.NewEncoder(con), wire.NewDecoder(con))
 
 	r, err := s.Recv(secret)
 	if err != nil {

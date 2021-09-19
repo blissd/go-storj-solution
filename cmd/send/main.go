@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"go-storj-solution/pkg/client"
+	"go-storj-solution/pkg/wire"
 	"log"
+	"net"
 	"os"
 )
 
@@ -29,12 +31,6 @@ func run(addr string, filePath string) error {
 	}
 	defer file.Close()
 
-	s, err := client.NewService(addr)
-	if err != nil {
-		log.Fatalln("failed creating client:", err)
-	}
-	defer s.Close()
-
 	info, err := file.Stat()
 	if err != nil {
 		log.Fatalln("stating file:", err)
@@ -45,6 +41,14 @@ func run(addr string, filePath string) error {
 		Name:   file.Name(),
 		Length: info.Size(),
 	}
+
+	con, err := net.Dial("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("new service: %w", err)
+	}
+	defer con.Close()
+
+	s := client.NewService(wire.NewEncoder(con), wire.NewDecoder(con))
 
 	response, err := s.Send(request)
 	if err != nil {
