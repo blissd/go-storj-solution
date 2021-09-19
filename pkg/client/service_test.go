@@ -14,7 +14,6 @@ import (
 func Test_service_Send(t *testing.T) {
 	fromClient, toServer := io.Pipe()
 	fromServer, toClient := io.Pipe()
-	s := NewService(wire.NewEncoder(toServer), wire.NewDecoder(fromServer))
 
 	body := "test body"
 
@@ -30,6 +29,7 @@ func Test_service_Send(t *testing.T) {
 	wg.Add(1)
 	// go routine is the sending client
 	go func() {
+		s := NewService(wire.NewEncoder(toServer), wire.NewDecoder(fromServer))
 		r, err := s.Send(request)
 		require.NoError(t, err)
 		require.Equal(t, "abc", r.Secret)
