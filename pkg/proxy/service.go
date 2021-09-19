@@ -5,7 +5,6 @@ import (
 	"go-storj-solution/pkg/client"
 	"go-storj-solution/pkg/wire"
 	"io"
-	"net"
 )
 
 // Service manages transfers between senders and receivers.
@@ -13,7 +12,8 @@ type Service struct {
 	// secrets source
 	secrets Secrets
 
-	// transfers that are in progress
+	// transfers that are in progress.
+	// updated serially by functions processed from 'action' channel.
 	transfers map[string]*transfer
 
 	// action to add or remove transfers.
@@ -46,8 +46,9 @@ func (r *Service) Run() {
 // For a receiver a Secret will be read from the connection.
 // A valid client then joins a transfer, either creating it for a sender
 // or being associated with an existing transform for a receiver.
+// The Service takes ownership of an onboarded connection and will be responsible for closing it.
 // Expected to be called from a go routine.
-func (r *Service) Onboard(conn net.Conn) {
+func (r *Service) Onboard(conn io.ReadWriteCloser) {
 	dec := wire.NewDecoder(conn)
 
 	var side client.Side
@@ -153,16 +154,16 @@ type transfer struct {
 	secret string
 
 	// send is connection from the sender
-	send net.Conn
+	send io.ReadWriteCloser
 
 	// recv is the connection to the receiver
-	recv net.Conn
+	recv io.ReadWriteCloser
 }
 
 // transferSide a client side of a transfer
 type transferSide struct {
 	// conn is connection to client
-	conn net.Conn
+	conn io.ReadWriteCloser
 
 	// side of the transfer, either sender or receiver
 	side client.Side
