@@ -3,30 +3,18 @@ package client
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"github.com/stretchr/testify/require"
 	"go-storj-solution/pkg/wire"
 	"io"
-	"math/rand"
-	"net"
 	"strings"
+	"sync"
 	"testing"
-	"time"
 )
 
 func Test_service_Send(t *testing.T) {
-
-	port := rand.Intn(1000) + 9000
-	addr := fmt.Sprintf(":%d", port)
-	l, err := net.Listen("tcp", addr)
-
-	require.NoError(t, err)
-	defer l.Close()
-
-	serverCon, err := net.Dial("tcp", addr)
-	require.NoError(t, err)
-
-	s := NewService(wire.NewEncoder(serverCon), wire.NewDecoder(serverCon))
+	fromClient, toServer := io.Pipe()
+	fromServer, toClient := io.Pipe()
+	s := NewService(wire.NewEncoder(toServer), wire.NewDecoder(fromServer))
 
 	body := "test body"
 
@@ -35,41 +23,44 @@ func Test_service_Send(t *testing.T) {
 		Name:   "test.txt",
 		Length: int64(len(body)),
 	}
-	responsec := make(chan *SendResponse)
+
+	secret := []byte("abc")
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	// go routine is the sending client
 	go func() {
 		r, err := s.Send(request)
 		require.NoError(t, err)
-		responsec <- r
+		require.Equal(t, "abc", r.Secret)
+
+		sendErr := <-r.Errors
+		require.NoError(t, sendErr)
 	}()
 
-	conn, err := l.Accept()
-	require.NoError(t, err)
-	conn.SetDeadline(time.Now().Add(1 * time.Second))
+	// following reads and writes simulate server-side of connection
+	bs := []byte{0, 0}
+	io.ReadFull(fromClient, bs)
+	require.Equal(t, byte('b'), bs[0])
+	require.Equal(t, MsgSend, Side(bs[1]))
 
-	side := []byte{0, 0}
-	io.ReadFull(conn, side)
-	require.Equal(t, byte('b'), side[0])
-	require.Equal(t, MsgSend, Side(side[1]))
-
-	conn.Write([]byte{'s', 3, 'a', 'b', 'c'})
-	response := <-responsec
-	require.Equal(t, "abc", response.Secret)
-
-	conn.Write([]byte{'b', byte(MsgRecv)}) // indicates receiver is ready
+	toClient.Write([]byte{'s', byte(len(secret))})
+	toClient.Write(secret)
+	toClient.Write([]byte{'b', byte(MsgRecv)}) // indicates receiver is ready
 
 	// read name
-	name := make([]byte, len(request.Name)+2) // 1 for header 1 for length
-	io.ReadFull(conn, name)
-	require.Equal(t, byte('s'), name[0])
-	require.Equal(t, byte(len(request.Name)), name[1])
+	bs = make([]byte, len(request.Name)+2) // 1 for header 1 for length
+	io.ReadFull(fromClient, bs)
+	require.Equal(t, byte('s'), bs[0])
+	require.Equal(t, byte(len(request.Name)), bs[1])
 
-	if request.Name != string(name[2:]) {
-		t.Fatalf("want %v, got %v", request.Name, string(name[2:]))
+	if request.Name != string(bs[2:]) {
+		t.Fatalf("want %v, got %v", request.Name, string(bs[2:]))
 	}
 
 	// read body
-	bs := make([]byte, len(body)+1+8) // +1 for type +8 for size of int64
-	io.ReadFull(conn, bs)
+	bs = make([]byte, len(body)+1+8) // +1 for type +8 for size of int64
+	io.ReadFull(fromClient, bs)
 
 	r := bytes.NewReader(bs)
 	if b, _ := r.ReadByte(); b != byte('B') {
@@ -85,54 +76,48 @@ func Test_service_Send(t *testing.T) {
 }
 
 func Test_service_Recv(t *testing.T) {
-
-	port := rand.Intn(1000) + 9000
-	addr := fmt.Sprintf(":%d", port)
-	l, err := net.Listen("tcp", addr)
-	require.NoError(t, err)
-	defer l.Close()
-
-	serverCon, err := net.Dial("tcp", addr)
-	require.NoError(t, err)
-
-	s := NewService(wire.NewEncoder(serverCon), wire.NewDecoder(serverCon))
+	fromClient, toServer := io.Pipe()
+	fromServer, toClient := io.Pipe()
 
 	secret := "foobar"
+	fileName := []byte("file.txt")
+	body := []byte("i like cheese")
 
-	responsec := make(chan *RecvResponse)
+	// go routine is the server
 	go func() {
-		r, err := s.Recv(secret)
-		require.NoError(t, err)
-		responsec <- r
+		// expect client-side indicator
+		bs := []byte{0, 0}
+		io.ReadFull(fromClient, bs)
+		require.Equal(t, byte('b'), bs[0])
+		require.Equal(t, MsgRecv, Side(bs[1]))
+		println(2)
+		// expect secret
+		bs = []byte{0, 0}
+		io.ReadFull(fromClient, bs)
+		require.Equal(t, byte('s'), bs[0])
+		require.Equal(t, len(secret), int(bs[1]))
+
+		bs = make([]byte, bs[1])
+		io.ReadFull(fromClient, bs)
+		require.Equal(t, []byte(secret), bs)
+
+		// send file name
+		toClient.Write([]byte{'s', byte(len(fileName))})
+		toClient.Write(fileName)
+
+		// send file body
+		toClient.Write([]byte{'B', 0, 0, 0, 0, 0, 0, 0, byte(len(body))})
+		toClient.Write(body)
 	}()
 
-	conn, err := l.Accept()
+	s := NewService(wire.NewEncoder(toServer), wire.NewDecoder(fromServer))
+
+	r, err := s.Recv(secret)
 	require.NoError(t, err)
-	conn.SetDeadline(time.Now().Add(1 * time.Second))
+	require.Equal(t, string(fileName), r.Name)
 
-	side := []byte{0, 0}
-	io.ReadFull(conn, side)
-	require.Equal(t, byte('b'), side[0])
-	require.Equal(t, MsgRecv, Side(side[1]))
-
-	bs := []byte{0, 0}
-	io.ReadFull(conn, bs)
-	require.Equal(t, byte('s'), bs[0])
-	require.Equal(t, len(secret), int(bs[1]))
-
-	fileName := []byte("file.txt")
-	conn.Write([]byte{'s', byte(len(fileName))})
-	conn.Write(fileName)
-
-	body := []byte("i like cheese")
-	conn.Write([]byte{'B', 0, 0, 0, 0, 0, 0, 0, byte(len(body))})
-	conn.Write(body)
-
-	response := <-responsec
-	require.Equal(t, string(fileName), response.Name)
-
-	bs = make([]byte, len(body))
-	_, err = response.Body.Read(bs)
+	bs := make([]byte, len(body))
+	_, err = r.Body.Read(bs)
 	require.NoError(t, err)
 	require.Equal(t, body, bs)
 }
