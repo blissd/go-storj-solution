@@ -3,13 +3,27 @@ package client
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/stretchr/testify/require"
 	"go-storj-solution/pkg/wire"
 	"io"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
 )
+
+func IsEqual(t *testing.T, want interface{}, got interface{}) {
+	t.Helper()
+	if !reflect.DeepEqual(want, got) {
+		t.Fatalf("Values not equal. want: %v, got: %v", want, got)
+	}
+}
+
+func NoError(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
 
 func Test_service_Send(t *testing.T) {
 	fromClient, toServer := io.Pipe()
@@ -31,18 +45,18 @@ func Test_service_Send(t *testing.T) {
 	go func() {
 		s := NewService(wire.NewEncoder(toServer), wire.NewDecoder(fromServer))
 		r, err := s.Send(request)
-		require.NoError(t, err)
-		require.Equal(t, "abc", r.Secret)
+		NoError(t, err)
+		IsEqual(t, "abc", r.Secret)
 
 		sendErr := <-r.Errors
-		require.NoError(t, sendErr)
+		NoError(t, sendErr)
 	}()
 
 	// following reads and writes simulate server-side of connection
 	bs := []byte{0, 0}
 	io.ReadFull(fromClient, bs)
-	require.Equal(t, byte('b'), bs[0])
-	require.Equal(t, MsgSend, Side(bs[1]))
+	IsEqual(t, byte('b'), bs[0])
+	IsEqual(t, MsgSend, Side(bs[1]))
 
 	toClient.Write([]byte{'s', byte(len(secret))})
 	toClient.Write(secret)
@@ -51,8 +65,8 @@ func Test_service_Send(t *testing.T) {
 	// read name
 	bs = make([]byte, len(request.Name)+2) // 1 for header 1 for length
 	io.ReadFull(fromClient, bs)
-	require.Equal(t, byte('s'), bs[0])
-	require.Equal(t, byte(len(request.Name)), bs[1])
+	IsEqual(t, byte('s'), bs[0])
+	IsEqual(t, byte(len(request.Name)), bs[1])
 
 	if request.Name != string(bs[2:]) {
 		t.Fatalf("want %v, got %v", request.Name, string(bs[2:]))
@@ -68,11 +82,11 @@ func Test_service_Send(t *testing.T) {
 	}
 	var length int64
 	binary.Read(r, binary.BigEndian, &length)
-	require.Equal(t, int64(len(body)), length)
+	IsEqual(t, int64(len(body)), length)
 
 	b := &strings.Builder{}
 	io.Copy(b, r)
-	require.Equal(t, body, b.String())
+	IsEqual(t, body, b.String())
 }
 
 func Test_service_Recv(t *testing.T) {
@@ -88,18 +102,18 @@ func Test_service_Recv(t *testing.T) {
 		// expect client-side indicator
 		bs := []byte{0, 0}
 		io.ReadFull(fromClient, bs)
-		require.Equal(t, byte('b'), bs[0])
-		require.Equal(t, MsgRecv, Side(bs[1]))
+		IsEqual(t, byte('b'), bs[0])
+		IsEqual(t, MsgRecv, Side(bs[1]))
 		println(2)
 		// expect secret
 		bs = []byte{0, 0}
 		io.ReadFull(fromClient, bs)
-		require.Equal(t, byte('s'), bs[0])
-		require.Equal(t, len(secret), int(bs[1]))
+		IsEqual(t, byte('s'), bs[0])
+		IsEqual(t, len(secret), int(bs[1]))
 
 		bs = make([]byte, bs[1])
 		io.ReadFull(fromClient, bs)
-		require.Equal(t, []byte(secret), bs)
+		IsEqual(t, []byte(secret), bs)
 
 		// send file name
 		toClient.Write([]byte{'s', byte(len(fileName))})
@@ -113,11 +127,11 @@ func Test_service_Recv(t *testing.T) {
 	s := NewService(wire.NewEncoder(toServer), wire.NewDecoder(fromServer))
 
 	r, err := s.Recv(secret)
-	require.NoError(t, err)
-	require.Equal(t, string(fileName), r.Name)
+	NoError(t, err)
+	IsEqual(t, string(fileName), r.Name)
 
 	bs := make([]byte, len(body))
 	_, err = r.Body.Read(bs)
-	require.NoError(t, err)
-	require.Equal(t, body, bs)
+	NoError(t, err)
+	IsEqual(t, body, bs)
 }
